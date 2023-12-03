@@ -994,21 +994,50 @@ df_results <- add_model_performance(
   df_results = NULL # Pass the previously created results
 )
 
-linear_model_initial_2 <- lm(price ~ bathrooms + bedrooms + yr_renovated, data = train_df_linear)
+# Stepwise Regression: Both Directions
+step_model_both <- stepAIC(linear_model_initial, direction = "both", scope = list(upper = . ~ ., lower = ~ 1))
+features_both <- names(coef(step_model_both))
 df_results <- add_model_performance(
-  model_name = "OLS_linear_2",
-  model = linear_model_initial_2,
-  train_df = train_df_linear,
-  test_df = test_df_linear,
-  target_var = "price",
-  features = c("bathrooms", "bedrooms", "yr_renovated"),
-  df_results = df_results
+  "OLS_Step_Both",
+  step_model_both,
+  train_df_linear,
+  test_df_linear,
+  "price",
+  features_both,
+  df_results
+)
+
+# Stepwise Regression: Backward
+step_model_backward <- stepAIC(linear_model_initial, direction = "backward")
+features_backward <- names(coef(step_model_backward))
+df_results <- add_model_performance(
+  "OLS_Step_Backward",
+  step_model_backward,
+  train_df_linear,
+  test_df_linear,
+  "price",
+  features_backward,
+  df_results
+)
+
+# Stepwise Regression: Forward
+step_model_forward <- stepAIC(linear_model_initial, direction = "forward", scope = list(upper = . ~ ., lower = ~ 1))
+features_forward <- names(coef(step_model_forward))
+df_results <- add_model_performance(
+  "OLS_Step_Forward",
+  step_model_forward,
+  train_df_linear,
+  test_df_linear,
+  "price",
+  features_forward,
+  df_results
 )
 
 view_model_results(df_results)
+
 ```
 
-### Detailed Inital Model Insights
+### Detailed Initial Model Insights
 
 #### Model Fit
 - **R-squared (0.8404)**: Approximately 84.04% of the variability in real estate prices is explained by the model, indicating a strong fit.
