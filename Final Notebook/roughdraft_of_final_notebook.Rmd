@@ -217,6 +217,12 @@ train_df_linear <- transform_data(train_df, convergence_point, linear_model = TR
 test_df_linear <- transform_data(test_df, convergence_point, linear_model = TRUE)    # Transform the test data for linear models
 train_df_non_linear <- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
 test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
+
+# Save the transformed data as CSV files in the current directory
+write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
+write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
+write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
+write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
 ```
 
 #### Training Data Header
