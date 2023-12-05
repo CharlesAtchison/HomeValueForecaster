@@ -2,12 +2,32 @@
 ```{r logistic}
 # logistic regression with train dataset
 
-# create train without zipcode
-train_df_logis <- train_df_non_linear[,-c(22:91)]
-test_df_logis <- test_df_non_linear[,-c(22:91)]
+
+# transform zipcode perdictors
+indx.zipcode <- grepl('zipcode', colnames(train_df_non_linear))
+colname.zipcode <- colnames(train_df_non_linear)[indx.zipcode]
+train_df_logis <- train_df_non_linear
+test_df_logis <- test_df_non_linear
+calc.mean.price <- function(col, df) {
+  df.select <- df[df[,col] == 1,]
+  mean.price <- mean(df.select$price)
+  return (mean.price)
+}
+train_df_logis$zipcode.meanprice <- 0.0
+test_df_logis$zipcode.meanprice <- 0.0
+for (z in colname.zipcode) {
+  print (z)
+  train_df_logis[train_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, train_df_logis)
+  test_df_logis[test_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, test_df_logis)
+}
+
+# create train without zipcode and lat long
+train_df_logis <- train_df_logis[,!indx.zipcode]
+train_df_logis <- train_df_logis[ , -which(names(train_df_logis) %in% c("lat","long"))]
+test_df_logis <- test_df_logis[,!indx.zipcode]
+test_df_logis <- test_df_logis[ , -which(names(test_df_logis) %in% c("lat","long"))]
 
 # get median on price
-
 price_med <- median(train_df_logis$price)
 price_med
 # create categorical response variable. 1=higher than median, 0=lower than median
@@ -16,13 +36,16 @@ train_df_logis[train_df_logis$price < price_med,]$price_cat <- 0
 train_df_logis$price_cat <- as.factor(train_df_logis$price_cat)
 table(train_df_logis$price_cat)
 
-price_med.test <- median(test_df_non_linear$price)
+price_med.test <- median(test_df_logis$price)
 price_med.test
 # create categorical response variable. 1=higher than median, 0=lower than median
-test_df_non_linear$price_cat <- 1
-test_df_non_linear[test_df_non_linear$price < price_med.test,]$price_cat <- 0
-test_df_non_linear$price_cat <- as.factor(test_df_non_linear$price_cat)
-table(test_df_non_linear$price_cat)
+test_df_logis$price_cat <- 1
+test_df_logis[test_df_logis$price < price_med.test,]$price_cat <- 0
+test_df_logis$price_cat <- as.factor(test_df_logis$price_cat)
+table(test_df_logis$price_cat)
+
+# # remove outliers
+# outliers <- c("13244", "3098", "9986", "5127", "2627", "8814", "643")
 
 # logistic regression
 lmod <- glm(price_cat ~ . -price, family=binomial, train_df_logis)
@@ -36,26 +59,41 @@ length(summary(lmodr)$coefficients[,4])
 
 # drop1
 drop1(lmodr,test="Chi")
-length(summary(lmodr)$coefficients)
-#dropping view_2 first (highest pvalue)
-lmodr1<-update(lmodr, as.formula(paste(".~.-", "view_2")) )
+length(summary(lmodr)$coefficients[,4])
+#dropping view_1 first (highest pvalue, 0.1255369 in Chi test)
+lmodr1<-update(lmodr, as.formula(paste(".~.-", "view_1")) )
 summary(lmodr1)
 length(summary(lmodr1)$coefficients[,4])
-#dropping grade_11 next (highest pvalue)
-lmodr2<-update(lmodr1, as.formula(paste(".~.-", "grade_11")) )
+drop1(lmodr1,test="Chi")
+#dropping view_2 next (highest pvalue 0.2810319 in Chi test)
+lmodr2<-update(lmodr1, as.formula(paste(".~.-", "view_2")) )
 summary(lmodr2)
 length(summary(lmodr2)$coefficients[,4])
-#dropping grade_4 next (highest pvalue)
+drop1(lmodr2,test="Chi")
+# now all variables are significant Chi test.
+
+
+#dropping view_1 next (highest pvalue, 0.983187 in summary)
 lmodr3<-update(lmodr2, as.formula(paste(".~.-", "grade_4")) )
 summary(lmodr3)
 length(summary(lmodr3)$coefficients[,4]) # now All variables are significant.
+#dropping grade_11 next (highest pvalue, 0.930191 in summary)
+lmodr4<-update(lmodr3, as.formula(paste(".~.-", "grade_11")) )
+summary(lmodr4)
+length(summary(lmodr4)$coefficients[,4]) # now All variables are significant.
+#dropping season next (highest pvalue, Fall 0.853800 in summary)
+lmodr5<-update(lmodr4, as.formula(paste(".~.-", "season")) )
+summary(lmodr5)
+length(summary(lmodr5)$coefficients[,4]) # now All variables are significant.
+
+lmodr.final <- lmodr5
 
 true_labels <- train_df_logis$price_cat
-exp<-cbind(true_labels,lmodr3$fitted.values)
+exp<-cbind(true_labels,lmodr.final$fitted.values)
 exp[1:10,]
 
 #using 0.45 as a cutoff to predict the class. It has the highest F1
-predicted_probabilities <- predict(lmodr3, train_df_logis, type="response")
+predicted_probabilities <- predict(lmodr.final, train_df_logis, type="response")
 predictions <- ifelse(predicted_probabilities > 0.45, 1, 0)
 # Create confusion matrix
 confusion_matrix <- caret::confusionMatrix(as.factor(predictions), 
@@ -64,10 +102,17 @@ confusion_matrix <- caret::confusionMatrix(as.factor(predictions),
 
 confusion_matrix
 
+# # psuedo r squared
+# y.train <- as.numeric(train_df_logis$price_cat)
+# yhat.train <- as.numeric(predict(lmodr3, train_df_logis, type="response"))
+# sst.train <- sum((y.train - mean(y.train))^2)
+# sse.train <- sum((y.train - yhat.train)^2)
+# rsq.train <- 1 - sse.train / sst.train
+# rsq.train
 
 # test data 
 true_labels.test <- test_df_logis$price_cat
-predicted_probabilities.test <- predict(lmodr3, test_df_logis, type="response")
+predicted_probabilities.test <- predict(lmodr.final, test_df_logis, type="response")
 predictions.test <- ifelse(predicted_probabilities.test > 0.45, 1, 0)
 # Create confusion matrix
 confusion_matrix.test <- caret::confusionMatrix(as.factor(predictions.test), 
