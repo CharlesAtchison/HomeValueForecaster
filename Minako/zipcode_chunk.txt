@@ -1,0 +1,27 @@
+### zipcode
+```{r zipcode}
+zipcode_train <- train_df_non_linear
+indx.zipcode <- grepl('zipcode', colnames(train_df_non_linear))
+colname.zipcode <- colnames(train_df_non_linear)[indx.zipcode]
+
+calc.mean.price <- function(col) {
+  df.select <- zipcode_train[zipcode_train[,col] == 1,]
+  mean.price <- mean(df.select$price)
+  return (mean.price)
+}
+
+zipcode_train$zipcode.meanprice <- 0.0
+for (z in colname.zipcode) {
+  print (z)
+  print (calc.mean.price(z) )
+  # zipcode_train <- calc.mean.price(z)
+  zipcode_train[zipcode_train[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z)
+}
+
+# cor
+cor(zipcode_train$price, zipcode_train$zipcode.meanprice)
+
+# plot
+plot(zipcode_train$price, zipcode_train$zipcode.meanprice)
+
+```
