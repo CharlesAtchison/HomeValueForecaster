@@ -1044,47 +1044,17 @@ extract_and_display_features <- function(model, full_df, target_var) {
   # Identify features not used in the model
   unused_features <- setdiff(all_features, features_used)
 
-  # Display the unused features
-  if (length(unused_features) > 0) {
-    cat("Features not used in the model:\n", paste(unused_features, collapse = ", "), "\n")
-  } else {
-    cat("No features were dropped in the model.\n")
-  }
+  # USE THIS FOR DEBUGGING ISSUES
+  # # Display the unused features
+  # if (length(unused_features) > 0) {
+  #   cat("Features not used in the model:\n", paste(unused_features, collapse = ", "), "\n")
+  # } else {
+  #   cat("No features were dropped in the model.\n")
+  # }
 
   # Return the features that were used as a character vector
   return(features_used)
 }
-
-subset_data <- function(train_df_linear, test_df_linear, used_features) {
-  tryCatch({
-    missing_features_train <- setdiff(used_features, names(train_df_linear))
-    missing_features_test <- setdiff(used_features, names(test_df_linear))
-
-    if (length(missing_features_train) > 0) {
-      cat("Error: Missing features in train_df_linear:", paste(missing_features_train, collapse = ", "), "\n")
-    }
-
-    if (length(missing_features_test) > 0) {
-      cat("Error: Missing features in test_df_linear:", paste(missing_features_test, collapse = ", "), "\n")
-    }
-
-    x_train_subset <- train_df_linear[, used_features]
-    y_train_subset <- train_df_linear$price
-    x_test_subset <- test_df_linear[, used_features]
-    y_test_subset <- test_df_linear$price
-
-    return(list(x_train = x_train_subset, y_train = y_train_subset, x_test = x_test_subset, y_test = y_test_subset))
-  }, error = function(e) {
-    cat("Error:", conditionMessage(e), "\n")
-    x_train_subset <- data.frame()  # Empty dataframe
-    y_train_subset <- numeric(0)    # Empty numeric vector
-    x_test_subset <- data.frame()   # Empty dataframe
-    y_test_subset <- numeric(0)     # Empty numeric vector
-
-    return(list(x_train = x_train_subset, y_train = y_train_subset, x_test = x_test_subset, y_test = y_test_subset))
-  })
-}
-
 
 # Function to create a linear model based on a subset of features
 create_model <- function(df, target_var, features) {
@@ -1093,31 +1063,49 @@ create_model <- function(df, target_var, features) {
   # Fit the linear model
   return(lm(formula, data = df))
 }
+
+prepare_data <- function(model, train_df, test_df, target_var) {
+  # Extracting used features from the model
+  used_features <- extract_and_display_features(model, train_df, target_var = target_var)
+
+  # Create x_train and x_test without the target variable
+  x_train <- subset(train_df, select = used_features)
+  x_test <- subset(test_df, select = used_features)
+
+  y_train <- train_df[[target_var]]
+  y_test <- test_df[[target_var]]
+
+  return(list(x_train = x_train, x_test = x_test, y_train = y_train, y_test = y_test))
+}
+
+evaluate_model <- function(model_name, model, train_df, test_df, target_var, df_results) {
+  # Extracting used features from the model
+  used_features <- extract_and_display_features(model, train_df, target_var = target_var)
+
+  # Filter data into x and y subsets
+  data <- prepare_data(model, train_df, test_df, target_var = target_var)
+
+  # Adding model performance to the results dataframe
+  df_results <- add_model_performance(
+    model_name = model_name,
+    model = model,
+    x_train = data$x_train,
+    y_train = data$y_train,
+    x_test = data$x_test,
+    y_test = data$y_test,
+    df_results = df_results  # Or pass existing df_results if available
+  )
+
+  return(df_results)
+}
 ```
 
 ```{r running_other_models}
 # Fit a linear regression model to the training data
 linear_model_initial <- lm(price ~ ., data = train_df_linear)
 
-# Extracting used features from the model
-used_features <- extract_and_display_features(linear_model_initial, train_df_linear, target_var = 'price')
-
-subset_result <- subset_data(train_df_linear, test_df_linear, used_features)
-x_train <- subset_result$x_train
-y_train <- subset_result$y_train
-x_test <- subset_result$x_test
-y_test <- subset_result$y_test
-
-# Adding model performance to the results dataframe
-df_results <- add_model_performance(
-    model_name = "OLS_linear",
-    model = linear_model_initial,
-    x_train = x_train,
-    y_train = y_train,
-    x_test = x_test,
-    y_test = y_test,
-    df_results = NULL  # Or pass existing df_results if available
-)
+# Evaluate OLS_linear
+df_results <- evaluate_model("OLS_linear", linear_model_initial, train_df_linear, test_df_linear, target_var = 'price', NULL)
 
 # Conditional logic based on the update_model_parameters flag
 if (update_model_parameters) {
@@ -1156,7 +1144,16 @@ view_model_results(df_results)
 
 ```{r add_features}
 
+# Evaluate OLS_Step_Both
+df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
 
+# Evaluate OLS_Step_Forward
+df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate OLS_Step_Backward
+df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+view_model_results(df_results)
 ```
 
 ### Detailed Initial Model Insights

@@ -6313,11 +6313,26 @@ test_df_linear &lt;- transform_data(test_df, convergence_point, linear_model = T
 train_df_non_linear &lt;- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
 test_df_non_linear &lt;- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
 
-# Save the transformed data as CSV files in the current directory
-write.csv(train_df_linear, &quot;train_df_linear.csv&quot;, row.names = FALSE)
-write.csv(test_df_linear, &quot;test_df_linear.csv&quot;, row.names = FALSE)
-write.csv(train_df_non_linear, &quot;train_df_non_linear.csv&quot;, row.names = FALSE)
-write.csv(test_df_non_linear, &quot;test_df_non_linear.csv&quot;, row.names = FALSE)</code></pre>
+# Set this to TRUE to update all the json model_parameters that are stored the JSON
+# Check if the update_model_parameters is TRUE or not
+update_model_parameters &lt;- FALSE
+
+# This updates the json with the parameters that were obtained from the intensive process of running
+update_model_json &lt;- function(model_name, features, filepath) {
+  model_params &lt;- if (file.exists(filepath)) {
+                    fromJSON(filepath)
+                  } else {
+                    list()
+                  }
+  model_params[[model_name]] &lt;- features
+  write_json(model_params, filepath)
+}
+
+# # Save the transformed data as CSV files in the current directory
+# write.csv(train_df_linear, &quot;train_df_linear.csv&quot;, row.names = FALSE)
+# write.csv(test_df_linear, &quot;test_df_linear.csv&quot;, row.names = FALSE)
+# write.csv(train_df_non_linear, &quot;train_df_non_linear.csv&quot;, row.names = FALSE)
+# write.csv(test_df_non_linear, &quot;test_df_non_linear.csv&quot;, row.names = FALSE)</code></pre>
 </div>
 <div id="training-data-header" class="section level4">
 <h4>Training Data Header</h4>
@@ -7728,84 +7743,56 @@ biases.</p>
 <pre class="r"><code># Fit a linear regression model to the training data
 linear_model_initial &lt;- lm(price ~ ., data = train_df_linear)
 
-# Extracting used features from the model
-used_features &lt;- extract_and_display_features(linear_model_initial, train_df_linear, target_var = &#39;price&#39;)</code></pre>
-<pre><code>## No features were dropped in the model.</code></pre>
-<pre class="r"><code># Subsetting the train and test dataframes with the used features
-tryCatch({
-  missing_features_train &lt;- setdiff(used_features, names(train_df_linear))
-  missing_features_test &lt;- setdiff(used_features, names(test_df_linear))
+# Evaluate OLS_linear
+df_results &lt;- evaluate_model(&quot;OLS_linear&quot;, linear_model_initial, train_df_linear, test_df_linear, target_var = &#39;price&#39;, NULL)
 
-  if (length(missing_features_train) &gt; 0) {
-    cat(&quot;Error: Missing features in train_df_linear:&quot;, paste(missing_features_train, collapse = &quot;, &quot;), &quot;\n&quot;)
+# Conditional logic based on the update_model_parameters flag
+if (update_model_parameters) {
+  # Run each of the stepwise regression models and update the JSON file
+  # Step model both
+  model_both &lt;- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both &lt;- setdiff(names(coef(model_both$model)), &quot;(Intercept)&quot;)
+  update_model_json(&quot;OLS_Step_Both&quot;, features_both, json_filepath)
+
+  # Step model Backward
+  model_backward &lt;- ols_step_backward_p(linear_model_initial, prem = 0.05)
+  features_backward &lt;- setdiff(names(coef(model_backward$model)), &quot;(Intercept)&quot;)
+  update_model_json(&quot;OLS_Step_Backward&quot;, features_backward, json_filepath)
+
+  # Step model foward
+  model_forward &lt;- ols_step_forward_p(linear_model_initial, penter = 0.05)
+  features_forward &lt;- setdiff(names(coef(model_forward$model)), &quot;(Intercept)&quot;)
+  update_model_json(&quot;OLS_Step_Forward&quot;, features_forward, json_filepath)
+} else {
+  # Load model parameters from JSON and build models
+  model_params &lt;- fromJSON(json_filepath)
+
+  # Create models based on the loaded features
+  if (all(c(&quot;OLS_Step_Both&quot;, &quot;OLS_Step_Backward&quot;, &quot;OLS_Step_Forward&quot;) %in% names(model_params))) {
+    # For each model type, create the model using the features stored in the JSON
+    model_both &lt;- create_model(train_df_linear, &#39;price&#39;, model_params$OLS_Step_Both)
+    model_backward &lt;- create_model(train_df_linear, &#39;price&#39;, model_params$OLS_Step_Backward)
+    model_forward &lt;- create_model(train_df_linear, &#39;price&#39;, model_params$OLS_Step_Forward)
+  } else {
+    stop(&quot;Required model parameters are missing in the JSON file.&quot;)
   }
-
-  if (length(missing_features_test) &gt; 0) {
-    cat(&quot;Error: Missing features in test_df_linear:&quot;, paste(missing_features_test, collapse = &quot;, &quot;), &quot;\n&quot;)
-  }
-
-  x_train_subset &lt;- train_df_linear[, used_features]
-  y_train_subset &lt;- train_df_linear$price
-  x_test_subset &lt;- test_df_linear[, used_features]
-  y_test_subset &lt;- test_df_linear$price
-}, error = function(e) {
-  cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
-  x_train_subset &lt;- data.frame()  # Empty dataframe
-  y_train_subset &lt;- numeric(0)    # Empty numeric vector
-  x_test_subset &lt;- data.frame()   # Empty dataframe
-  y_test_subset &lt;- numeric(0)     # Empty numeric vector
-})
-
-# Adding model performance to the results dataframe
-df_results &lt;- add_model_performance(
-    model_name = &quot;OLS_linear&quot;,
-    model = linear_model_initial,
-    x_train = x_train_subset,
-    y_train = y_train_subset,
-    x_test = x_test_subset,
-    y_test = y_test_subset,
-    df_results = NULL  # Or pass existing df_results if available
-)
-
-# # Stepwise Regression: Both Directions
-# step_model_both &lt;- ols_step_both_p(linear_model_initial, pent=0.05, prem=0.05)
-# features_both &lt;- names(coef(step_model_both))
-
-# # Stepwise Regression: Backward
-# step_model_backward &lt;- ols_step_backward_p(linear_model_initial, prem = 0.05)
-# features_backward &lt;- names(coef(step_model_backward))
-#
-# # Stepwise Regression: Forward
-# step_model_forward &lt;- ols_step_forward_p(linear_model_initial, penter = 0.05)
-# features_forward &lt;- names(coef(step_model_forward))
+}
 
 view_model_results(df_results)</code></pre>
 <div class="datatables html-widget html-fill-item" id="htmlwidget-3d55431a7a6da7778205" style="width:100%;height:auto;"></div>
 <script type="application/json" data-for="htmlwidget-3d55431a7a6da7778205">{"x":{"filter":"none","vertical":false,"caption":"<caption>Model Comparison<\/caption>","data":[["1"],["OLS_linear"],[327165657255967.5],[146321877069309.9],[0.8401051796677462],[0.8311833437017644],[147054.64368827],[150221.857865984],[86252.74133100695],[88389.95997558441]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>Model<\/th>\n      <th>SSE_train<\/th>\n      <th>SSE_test<\/th>\n      <th>R_squared_train<\/th>\n      <th>R_squared_test<\/th>\n      <th>RMSE_train<\/th>\n      <th>RMSE_test<\/th>\n      <th>MAE_train<\/th>\n      <th>MAE_test<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"paging":false,"autoWidth":true,"scrollX":true,"fixedColumns":{"leftColumns":1},"columnDefs":[{"className":"dt-right","targets":[2,3,4,5,6,7,8,9]},{"orderable":false,"targets":0}],"order":[],"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
-<pre class="r"><code># features_both &lt;- extract_and_display_features(step_model_both$model, train_df_linear, &quot;price&quot;)
+<pre class="r"><code># Evaluate OLS_Step_Both
+df_results &lt;- evaluate_model(&quot;OLS_Step_Both&quot;, model_both, train_df_linear, test_df_linear, target_var = &#39;price&#39;, df_results)
 
+# Evaluate OLS_Step_Forward
+df_results &lt;- evaluate_model(&quot;OLS_Step_Forward&quot;, model_forward, train_df_linear, test_df_linear, target_var = &#39;price&#39;, df_results)
 
-#
-# df_results &lt;- add_model_performance(
-#   &quot;OLS_Step_Forward&quot;,
-#   step_model_forward,
-#   train_df_linear,
-#   test_df_linear,
-#   &quot;price&quot;,
-#   features_forward,
-#   df_results
-# )
-# df_results &lt;- add_model_performance(
-#   &quot;OLS_Step_Both&quot;,
-#   step_model_both,
-#   train_df_linear,
-#   test_df_linear,
-#   &quot;price&quot;,
-#   features=features_both,
-#   df_results
-# )
+# Evaluate OLS_Step_Backward
+df_results &lt;- evaluate_model(&quot;OLS_Step_Backward&quot;, model_backward, train_df_linear, test_df_linear, target_var = &#39;price&#39;, df_results)
 
-# view_model_results(df_results)</code></pre>
+view_model_results(df_results)</code></pre>
+<div class="datatables html-widget html-fill-item" id="htmlwidget-ad17a54c1866b1c758fb" style="width:100%;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-ad17a54c1866b1c758fb">{"x":{"filter":"none","vertical":false,"caption":"<caption>Model Comparison<\/caption>","data":[["1","2","3","4"],["OLS_linear","OLS_Step_Both","OLS_Step_Forward","OLS_Step_Backward"],[327165657255967.5,331555414936879.9,327303752405197.9,327303752405198.4],[146321877069309.9,149084367387729.7,146368198875956.8,146368198875957.3],[0.8401051796677462,0.8379597848192202,0.840037688784809,0.8400376887848088],[0.8311833437017644,0.8279961622087949,0.8311299006167764,0.8311299006167758],[147054.64368827,148037.9120624784,147085.6759650959,147085.675965096],[150221.857865984,151633.287318145,150245.6342053655,150245.6342053657],[86252.74133100695,86853.36461300458,86251.38932636962,86251.38932636977],[88389.95997558441,89153.17247503145,88414.86064389689,88414.86064389719]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>Model<\/th>\n      <th>SSE_train<\/th>\n      <th>SSE_test<\/th>\n      <th>R_squared_train<\/th>\n      <th>R_squared_test<\/th>\n      <th>RMSE_train<\/th>\n      <th>RMSE_test<\/th>\n      <th>MAE_train<\/th>\n      <th>MAE_test<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"paging":false,"autoWidth":true,"scrollX":true,"fixedColumns":{"leftColumns":1},"columnDefs":[{"className":"dt-right","targets":[2,3,4,5,6,7,8,9]},{"orderable":false,"targets":0}],"order":[],"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 <div id="detailed-initial-model-insights" class="section level3">
 <h3>Detailed Initial Model Insights</h3>
@@ -7860,123 +7847,6 @@ Variance Inflation Factor (VIF) for each predictor to identify
 multicollinearity, which can inflate the variance of the estimated
 regression coefficients and make the model less reliable.</li>
 </ol>
-<pre class="r"><code>vif(linear_model_initial)</code></pre>
-<pre><code>##                bedrooms               bathrooms             sqft_living 
-##                1.749979                3.525221                7.073569 
-##                sqft_lot                  floors           sqft_basement 
-##                2.036098                2.543353                2.235576 
-##                yr_built            yr_renovated           sqft_living15 
-##                3.192618                1.192821                3.402636 
-##              sqft_lot15               year_sold                day_sold 
-##                2.205563                3.644454                1.110920 
-##             day_of_year           zipcode_98001           zipcode_98002 
-##               18.736627                3.593959                2.465027 
-##           zipcode_98003           zipcode_98004           zipcode_98005 
-##                3.152402                2.484314                1.784149 
-##           zipcode_98006           zipcode_98007           zipcode_98008 
-##                2.975940                1.528981                2.018367 
-##           zipcode_98010           zipcode_98011           zipcode_98014 
-##                1.805764                1.727180                1.802351 
-##           zipcode_98019           zipcode_98022           zipcode_98023 
-##                1.787064                4.580666                5.067811 
-##           zipcode_98024           zipcode_98027           zipcode_98028 
-##                1.423480                2.381506                1.886239 
-##           zipcode_98029           zipcode_98030           zipcode_98031 
-##                2.129958                2.320167                2.200350 
-##           zipcode_98032           zipcode_98033           zipcode_98034 
-##                1.629344                2.649313                2.855103 
-##           zipcode_98038           zipcode_98039           zipcode_98040 
-##                4.653802                1.259242                2.139123 
-##           zipcode_98042           zipcode_98045           zipcode_98052 
-##                4.109002                2.914920                3.037300 
-##           zipcode_98053           zipcode_98055           zipcode_98056 
-##                2.444634                1.877824                2.415166 
-##           zipcode_98058           zipcode_98059           zipcode_98065 
-##                2.641924                2.578546                2.706643 
-##           zipcode_98070           zipcode_98072           zipcode_98074 
-##                1.757420                1.925572                2.495220 
-##           zipcode_98075           zipcode_98077           zipcode_98092 
-##                2.373531                1.769284                3.713169 
-##           zipcode_98102           zipcode_98103           zipcode_98105 
-##                1.368582                2.954804                1.895194 
-##           zipcode_98106           zipcode_98107           zipcode_98108 
-##                2.110087                1.899568                1.595029 
-##           zipcode_98109           zipcode_98112           zipcode_98115 
-##                1.410776                2.112834                2.979952 
-##           zipcode_98116           zipcode_98117           zipcode_98118 
-##                2.092912                2.636110                2.753277 
-##           zipcode_98119           zipcode_98122           zipcode_98125 
-##                1.590052                2.114685                2.321204 
-##           zipcode_98126           zipcode_98133           zipcode_98136 
-##                2.156320                2.586399                1.837647 
-##           zipcode_98144           zipcode_98146           zipcode_98148 
-##                2.305358                2.024811                1.241295 
-##           zipcode_98155           zipcode_98166           zipcode_98168 
-##                2.423348                1.999003                1.890186 
-##           zipcode_98177           zipcode_98178           zipcode_98188 
-##                1.954690                1.843229                1.529140 
-##           zipcode_98198                  view_1                  view_2 
-##                2.273753                1.061534                1.113534 
-##                  view_3                  view_4             condition_2 
-##                1.124551                1.658200                1.041903 
-##             condition_4             condition_5                 grade_3 
-##                1.339192                1.259015                1.267163 
-##                 grade_4                 grade_5                 grade_6 
-##                3.296192               20.758889              166.843058 
-##                 grade_7                 grade_8                 grade_9 
-##              454.882839              371.925591              195.812087 
-##                grade_10                grade_11                grade_12 
-##               88.269271               33.385350                8.414754 
-##            waterfront_0           season_Spring           season_Summer 
-##                1.618081                4.375868               11.727556 
-##             season_Fall distance_to_convergence 
-##               21.826740               20.045560</code></pre>
-<p><strong>Explanation</strong>: In this section, we load the necessary
-libraries for modeling, including <code>lmtest</code> and
-<code>car</code>. We then use the <code>lm()</code> function to create
-the initial OLS regression model, where we predict the
-<code>price</code> based on all available features in the
-<code>train_df</code> dataset. The <code>summary()</code> function
-provides detailed information about the model, including coefficients,
-significance levels, and goodness-of-fit statistic# Feature Evaluation
-After constructing the initial model, we proceed with feature
-evaluation. This step involves investigating the importance of each
-predictor in the model. We assess the significance of individual
-variables and consider whether to remove or combine categorical
-variables to optimize model performance. The R code below demonstrates
-how to evaluate the importance of features:</p>
-<pre class="r"><code>predictions &lt;- predict(linear_model_initial, newdata = test_df_linear)
-
-# Assuming &#39;actual_values&#39; is the actual target variable values in your test dataset
-actual_values &lt;- test_df_linear$price
-
-# Calculate Mean Absolute Error (MAE)
-mae &lt;- mean(abs(predictions - actual_values))
-
-# Calculate Root Mean Squared Error (RMSE)
-rmse &lt;- sqrt(mean((predictions - actual_values)^2))
-
-# Calculate R-squared (R2)
-residuals &lt;- actual_values - predictions
-ss_total &lt;- sum((actual_values - mean(actual_values))^2)
-ss_residual &lt;- sum(residuals^2)
-r2 &lt;- 1 - (ss_residual / ss_total)
-
-# Print the evaluation metrics
-cat(&quot;MAE:&quot;, mae, &quot;\n&quot;)</code></pre>
-<pre><code>## MAE: 88389.96</code></pre>
-<pre class="r"><code>cat(&quot;RMSE:&quot;, rmse, &quot;\n&quot;)</code></pre>
-<pre><code>## RMSE: 150221.9</code></pre>
-<pre class="r"><code>cat(&quot;R-squared:&quot;, r2, &quot;\n&quot;)</code></pre>
-<pre><code>## R-squared: 0.8311833</code></pre>
-<p><strong>Explanation</strong>: In this section, we perform feature
-evaluation using stepwise selection. This technique automatically
-evaluates the significance of each predictor and iteratively selects the
-most relevant variables for the model. The <code>step()</code> function
-optimizes the model by adding or removing variables based on their
-significance levels. The resulting <code>stepwise_model</code> provides
-insights into the final set of predictors and their impact on model
-performance.</p>
 </div>
 </div>
 
