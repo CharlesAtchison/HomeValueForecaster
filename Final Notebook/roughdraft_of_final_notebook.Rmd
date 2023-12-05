@@ -1123,18 +1123,18 @@ df_results <- add_model_performance(
 if (update_model_parameters) {
   # Run each of the stepwise regression models and update the JSON file
   # Step model both
-  step_model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
-  features_both <- setdiff(names(coef(step_model_both$model)), "(Intercept)")
+  model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
   update_model_json("OLS_Step_Both", features_both, json_filepath)
 
   # Step model Backward
-  step_model_backward <- ols_step_backward_p(linear_model_initial, prem = 0.05)
-  features_backward <- setdiff(names(coef(step_model_backward$model)), "(Intercept)")
+  model_backward <- ols_step_backward_p(linear_model_initial, prem = 0.05)
+  features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
   update_model_json("OLS_Step_Backward", features_backward, json_filepath)
 
   # Step model foward
-  step_model_forward <- ols_step_forward_p(linear_model_initial, penter = 0.05)
-  features_forward <- setdiff(names(coef(step_model_forward$model)), "(Intercept)")
+  model_forward <- ols_step_forward_p(linear_model_initial, penter = 0.05)
+  features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
   update_model_json("OLS_Step_Forward", features_forward, json_filepath)
 } else {
   # Load model parameters from JSON and build models
