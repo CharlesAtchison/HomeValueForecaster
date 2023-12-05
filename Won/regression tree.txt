@@ -1,0 +1,31 @@
+#regression tree
+#install necessary packages
+install.packages("rpart")
+library(rpart)
+library(readr)
+df_hs_test_trans <- read_csv("df_hs_test_trans.csv")
+library(readr)
+df_hs_train_trans <- read_csv("df_hs_train_trans.csv")
+#build regression model 
+tree_model <- rpart(price ~ ., data = df_hs_train_trans)
+# visualize model 
+summary(tree_model)
+
+
+#predictions for test data (model performance)
+tree_pred_test <- predict(tree_model, newdata = df_hs_test_trans)
+summary(tree_pred_test)
+#R squared value
+rsquared_value <- 1- sum((df_hs_test_trans$price - tree_pred_test)^2)/sum((df_hs_test_trans$price - mean(df_hs_test_trans$price))^2)
+
+#SSE value
+sse_value <- sum((df_hs_test_trans$price - tree_pred_test)^2)
+
+#MAE value
+mae_value <- mean(abs(df_hs_test_trans$price - tree_pred_test))
+
+#print the values
+print(rsquared_value)
+print(sse_value)
+print(mae_value)
+
