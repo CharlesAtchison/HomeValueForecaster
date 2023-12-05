@@ -16,7 +16,7 @@ required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies",
   "faraway", "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr", "DT"
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite"
 )
 
 # Establish CRAN for package installs
@@ -38,8 +38,25 @@ rmd_dir <- dirname(here())
 # Navigate up one directory and then to the CSV data file
 csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
 
+json_filepath <- file.path(rmd_dir, "HomeValueForecaster/Final Notebook", "model_parameters.json")
+
 # Read the CSV file into a data frame
 df <- read.csv(csv_file)
+
+# Function to manually update the JSON file with model parameters
+update_model_json <- function(model_name, features, filepath) {
+  # Read existing parameters if the file exists, or initialize an empty list
+  model_params <- if (file.exists(filepath)) {
+                    fromJSON(filepath)
+                  } else {
+                    list()
+                  }
+  # Update the parameters for the specified model
+  model_params[[model_name]] <- features
+  # Write the updated parameters back to the JSON file
+  write_json(model_params, filepath)
+}
+
 ```
 
 
@@ -210,11 +227,26 @@ test_df_linear <- transform_data(test_df, convergence_point, linear_model = TRUE
 train_df_non_linear <- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
 test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
 
-# Save the transformed data as CSV files in the current directory
-write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
-write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
-write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
-write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
+# Set this to TRUE to update all the json model_parameters that are stored the JSON
+# Check if the update_model_parameters is TRUE or not
+update_model_parameters <- FALSE
+
+# This updates the json with the parameters that were obtained from the intensive process of running
+update_model_json <- function(model_name, features, filepath) {
+  model_params <- if (file.exists(filepath)) {
+                    fromJSON(filepath)
+                  } else {
+                    list()
+                  }
+  model_params[[model_name]] <- features
+  write_json(model_params, filepath)
+}
+
+# # Save the transformed data as CSV files in the current directory
+# write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
+# write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
+# write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
+# write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
 ```
 
 #### Training Data Header
@@ -1022,6 +1054,45 @@ extract_and_display_features <- function(model, full_df, target_var) {
   # Return the features that were used as a character vector
   return(features_used)
 }
+
+subset_data <- function(train_df_linear, test_df_linear, used_features) {
+  tryCatch({
+    missing_features_train <- setdiff(used_features, names(train_df_linear))
+    missing_features_test <- setdiff(used_features, names(test_df_linear))
+
+    if (length(missing_features_train) > 0) {
+      cat("Error: Missing features in train_df_linear:", paste(missing_features_train, collapse = ", "), "\n")
+    }
+
+    if (length(missing_features_test) > 0) {
+      cat("Error: Missing features in test_df_linear:", paste(missing_features_test, collapse = ", "), "\n")
+    }
+
+    x_train_subset <- train_df_linear[, used_features]
+    y_train_subset <- train_df_linear$price
+    x_test_subset <- test_df_linear[, used_features]
+    y_test_subset <- test_df_linear$price
+
+    return(list(x_train = x_train_subset, y_train = y_train_subset, x_test = x_test_subset, y_test = y_test_subset))
+  }, error = function(e) {
+    cat("Error:", conditionMessage(e), "\n")
+    x_train_subset <- data.frame()  # Empty dataframe
+    y_train_subset <- numeric(0)    # Empty numeric vector
+    x_test_subset <- data.frame()   # Empty dataframe
+    y_test_subset <- numeric(0)     # Empty numeric vector
+
+    return(list(x_train = x_train_subset, y_train = y_train_subset, x_test = x_test_subset, y_test = y_test_subset))
+  })
+}
+
+
+# Function to create a linear model based on a subset of features
+create_model <- function(df, target_var, features) {
+  # Construct the formula for lm()
+  formula <- as.formula(paste(target_var, "~", paste(features, collapse = "+")))
+  # Fit the linear model
+  return(lm(formula, data = df))
+}
 ```
 
 ```{r running_other_models}
@@ -1031,82 +1102,61 @@ linear_model_initial <- lm(price ~ ., data = train_df_linear)
 # Extracting used features from the model
 used_features <- extract_and_display_features(linear_model_initial, train_df_linear, target_var = 'price')
 
-# Subsetting the train and test dataframes with the used features
-tryCatch({
-  missing_features_train <- setdiff(used_features, names(train_df_linear))
-  missing_features_test <- setdiff(used_features, names(test_df_linear))
-
-  if (length(missing_features_train) > 0) {
-    cat("Error: Missing features in train_df_linear:", paste(missing_features_train, collapse = ", "), "\n")
-  }
-
-  if (length(missing_features_test) > 0) {
-    cat("Error: Missing features in test_df_linear:", paste(missing_features_test, collapse = ", "), "\n")
-  }
-
-  x_train_subset <- train_df_linear[, used_features]
-  y_train_subset <- train_df_linear$price
-  x_test_subset <- test_df_linear[, used_features]
-  y_test_subset <- test_df_linear$price
-}, error = function(e) {
-  cat("Error:", conditionMessage(e), "\n")
-  x_train_subset <- data.frame()  # Empty dataframe
-  y_train_subset <- numeric(0)    # Empty numeric vector
-  x_test_subset <- data.frame()   # Empty dataframe
-  y_test_subset <- numeric(0)     # Empty numeric vector
-})
+subset_result <- subset_data(train_df_linear, test_df_linear, used_features)
+x_train <- subset_result$x_train
+y_train <- subset_result$y_train
+x_test <- subset_result$x_test
+y_test <- subset_result$y_test
 
 # Adding model performance to the results dataframe
 df_results <- add_model_performance(
     model_name = "OLS_linear",
     model = linear_model_initial,
-    x_train = x_train_subset,
-    y_train = y_train_subset,
-    x_test = x_test_subset,
-    y_test = y_test_subset,
+    x_train = x_train,
+    y_train = y_train,
+    x_test = x_test,
+    y_test = y_test,
     df_results = NULL  # Or pass existing df_results if available
 )
 
-# # Stepwise Regression: Both Directions
-# step_model_both <- ols_step_both_p(linear_model_initial, pent=0.05, prem=0.05)
-# features_both <- names(coef(step_model_both))
+# Conditional logic based on the update_model_parameters flag
+if (update_model_parameters) {
+  # Run each of the stepwise regression models and update the JSON file
+  # Step model both
+  step_model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(step_model_both$model)), "(Intercept)")
+  update_model_json("OLS_Step_Both", features_both, json_filepath)
 
-# # Stepwise Regression: Backward
-# step_model_backward <- ols_step_backward_p(linear_model_initial, prem = 0.05)
-# features_backward <- names(coef(step_model_backward))
-#
-# # Stepwise Regression: Forward
-# step_model_forward <- ols_step_forward_p(linear_model_initial, penter = 0.05)
-# features_forward <- names(coef(step_model_forward))
+  # Step model Backward
+  step_model_backward <- ols_step_backward_p(linear_model_initial, prem = 0.05)
+  features_backward <- setdiff(names(coef(step_model_backward$model)), "(Intercept)")
+  update_model_json("OLS_Step_Backward", features_backward, json_filepath)
+
+  # Step model foward
+  step_model_forward <- ols_step_forward_p(linear_model_initial, penter = 0.05)
+  features_forward <- setdiff(names(coef(step_model_forward$model)), "(Intercept)")
+  update_model_json("OLS_Step_Forward", features_forward, json_filepath)
+} else {
+  # Load model parameters from JSON and build models
+  model_params <- fromJSON(json_filepath)
+
+  # Create models based on the loaded features
+  if (all(c("OLS_Step_Both", "OLS_Step_Backward", "OLS_Step_Forward") %in% names(model_params))) {
+    # For each model type, create the model using the features stored in the JSON
+    model_both <- create_model(train_df_linear, 'price', model_params$OLS_Step_Both)
+    model_backward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Backward)
+    model_forward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Forward)
+  } else {
+    stop("Required model parameters are missing in the JSON file.")
+  }
+}
 
 view_model_results(df_results)
 ```
 
 ```{r add_features}
-# features_both <- extract_and_display_features(step_model_both$model, train_df_linear, "price")
 
 
-#
-# df_results <- add_model_performance(
-#   "OLS_Step_Forward",
-#   step_model_forward,
-#   train_df_linear,
-#   test_df_linear,
-#   "price",
-#   features_forward,
-#   df_results
-# )
-# df_results <- add_model_performance(
-#   "OLS_Step_Both",
-#   step_model_both,
-#   train_df_linear,
-#   test_df_linear,
-#   "price",
-#   features=features_both,
-#   df_results
-# )
-
-# view_model_results(df_results)
 ```
 
 ### Detailed Initial Model Insights
@@ -1128,36 +1178,3 @@ view_model_results(df_results)
 ### Next Steps
 
 1. **Multicollinearity Check**: We will calculate the Variance Inflation Factor (VIF) for each predictor to identify multicollinearity, which can inflate the variance of the estimated regression coefficients and make the model less reliable.
-
-```{r inital_model_vif_examinaiton}
-vif(linear_model_initial)
-```
-
-**Explanation**: In this section, we load the necessary libraries for modeling, including `lmtest` and `car`. We then use the `lm()` function to create the initial OLS regression model, where we predict the `price` based on all available features in the `train_df` dataset. The `summary()` function provides detailed information about the model, including coefficients, significance levels, and goodness-of-fit statistic# Feature Evaluation
-After constructing the initial model, we proceed with feature evaluation. This step involves investigating the importance of each predictor in the model. We assess the significance of individual variables and consider whether to remove or combine categorical variables to optimize model performance. The R code below demonstrates how to evaluate the importance of features:
-
-```{r feature_evaluation, echo = TRUE}
-predictions <- predict(linear_model_initial, newdata = test_df_linear)
-
-# Assuming 'actual_values' is the actual target variable values in your test dataset
-actual_values <- test_df_linear$price
-
-# Calculate Mean Absolute Error (MAE)
-mae <- mean(abs(predictions - actual_values))
-
-# Calculate Root Mean Squared Error (RMSE)
-rmse <- sqrt(mean((predictions - actual_values)^2))
-
-# Calculate R-squared (R2)
-residuals <- actual_values - predictions
-ss_total <- sum((actual_values - mean(actual_values))^2)
-ss_residual <- sum(residuals^2)
-r2 <- 1 - (ss_residual / ss_total)
-
-# Print the evaluation metrics
-cat("MAE:", mae, "\n")
-cat("RMSE:", rmse, "\n")
-cat("R-squared:", r2, "\n")
-```
-
-**Explanation**: In this section, we perform feature evaluation using stepwise selection. This technique automatically evaluates the significance of each predictor and iteratively selects the most relevant variables for the model. The `step()` function optimizes the model by adding or removing variables based on their significance levels. The resulting `stepwise_model` provides insights into the final set of predictors and their impact on model performance.
