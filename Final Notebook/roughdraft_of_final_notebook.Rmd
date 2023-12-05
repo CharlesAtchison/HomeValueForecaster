@@ -164,11 +164,9 @@ convergence_point <- c(mean(high_value_homes$lat, na.rm = TRUE), mean(high_value
 
 # Data Transformation Function with Distance Binning Option
 transform_data <- function(df, convergence_point, linear_model) {
-
   # Date Transformation: Convert the 'date' column to a Date object if present
   if ("date" %in% colnames(df)) {
     df$date <- as.Date(substr(as.character(df$date), 1, 8), format="%Y%m%d")
-
     # Date-Time Feature Engineering: Extract various date-related features
     df$year_sold <- lubridate::year(df$date)
     df$month_sold <- lubridate::month(df$date)
@@ -177,7 +175,6 @@ transform_data <- function(df, convergence_point, linear_model) {
     df$week_of_year <- lubridate::week(df$date)
     df$day_of_year <- lubridate::yday(df$date)
   }
-
   # Creating Dummy Variables: Convert categorical variables into dummy variables
   df <- df %>%
     mutate(zipcode = as.factor(zipcode),
@@ -186,12 +183,10 @@ transform_data <- function(df, convergence_point, linear_model) {
            condition = as.factor(condition),
            grade = as.character(grade)) %>%
     dummy_cols(select_columns = c('zipcode', 'view', 'condition', 'grade', 'waterfront', 'season'))
-
   # Remove last dummy variables to avoid multicollinearity
   if (linear_model) {
-    df <- df[, !(names(df) %in% c("zipcode_98199", "view_0", "condition_1", "grade_13"))]
+    df <- df[, !(names(df) %in% c("zipcode_98199", "view_0", "condition_1", "grade_13", "season_Winter", "waterfront_1"))]
   }
-
   # Haversine Distance Function: Calculate the distance between two points on Earth's surface
   haversine_distance <- function(lat1, long1, lat2, long2) {
     R <- 6371  # Earth radius in kilometers
@@ -202,28 +197,24 @@ transform_data <- function(df, convergence_point, linear_model) {
     d <- R * c  # Calculate the haversine distance
     return(d)
   }
-
   # Calculate Haversine Distance
   df$distance_to_convergence <- mapply(haversine_distance, df$lat, df$long,
                                        MoreArgs = list(lat2 = convergence_point[1], long2 = convergence_point[2]))
-
   # Remove columns that are no longer needed
-  df <- df[, !(names(df) %in% c("id", "date", "zipcode", "view", "condition", "grade", 'waterfront', 'season'))]
-
+  df <- df[, !(names(df) %in% c("id", "date", "zipcode", "view", "condition", "grade", "waterfront", "season"))]
   return(df)
 }
-
 # Applying the transformation function to training and test sets
 train_df_linear <- transform_data(train_df, convergence_point, linear_model = TRUE)  # Transform the training data for linear models
 test_df_linear <- transform_data(test_df, convergence_point, linear_model = TRUE)    # Transform the test data for linear models
 train_df_non_linear <- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
 test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
 
-# # Save the transformed data as CSV files in the current directory
-# write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
-# write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
-# write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
-# write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
+# Save the transformed data as CSV files in the current directory
+write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
+write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
+write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
+write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
 ```
 
 #### Training Data Header
@@ -442,10 +433,9 @@ The bar plot above displays the distribution of the `floors` variable, showing t
 
 ```{r price_vs_waterfront, echo = FALSE, include = TRUE}
 # Binned Boxplot of Price vs. Waterfront
-boxplot(train_df_non_linear$price ~ factor(train_df_non_linear$waterfront_1, levels = c(0, 1)),
+boxplot(price ~ waterfront_1, data = train_df_non_linear,
         main = "Price vs. Waterfront", xlab = "Waterfront", ylab = "Price", col = "purple",
-        xaxt = "n")  # Setting xaxt to "n" to customize x-axis labels
-axis(side = 1, at = c(1, 2), labels = c("No", "Yes"))  # Customizing x-axis labels
+        names = c("No", "Yes"))  # Labels for waterfront status
 
 ```
 
@@ -454,8 +444,8 @@ In the scatter plot above, we compare `price` against the `waterfront` variable.
 ```{r distribution_waterfront, echo = FALSE, include = TRUE}
 # Bar plot for the distribution of Waterfront
 barplot(table(train_df_non_linear$waterfront_1), main = "Distribution of Waterfront",
-        xlab = "Waterfront", ylab = "Frequency",
-        names.arg = c("No", "Yes"), col = "purple")  # Customizing x-axis labels and color
+        xlab = "Waterfront", ylab = "Frequency", col = "purple",
+        names.arg = c("No", "Yes"))  # Labels for waterfront status
 
 ```
 
@@ -705,47 +695,49 @@ ggplot(monthly_counts_df, aes(x = Month, y = Count, group = 1)) +
 #### Seasonal Trends in Average House Prices
 
 ```{r seasonal_trends_in_average_house_prices, echo = FALSE, include = TRUE}
-# Refactor the Season variable to reflect temporal order
-train_df_non_linear$Season <- with(train_df_non_linear,
-                                   ifelse(season_Spring == 1, "Spring",
-                                          ifelse(season_Summer == 1, "Summer",
-                                                 ifelse(season_Fall == 1, "Fall", "Winter"))))
-
-# Set the factor levels for Season
-train_df_non_linear$Season <- factor(train_df_non_linear$Season, levels = c("Spring", "Summer", "Fall", "Winter"))
-
-# Seasonal Trends in Average House Prices
-seasonal_trends <- aggregate(price ~ Season, data = train_df_non_linear, FUN = mean)
+# Aggregate average price for each season
+seasonal_trends <- data.frame(
+  Season = c("Winter", "Spring", "Summer", "Fall"),
+  Average_Price = c(
+    mean(train_df_non_linear$price[train_df_non_linear$season_Winter == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Spring == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Summer == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Fall == 1])
+  )
+)
 
 # Find the global maximum
-global_max_seasonal <- seasonal_trends[which.max(seasonal_trends$price), ]
+global_max_seasonal <- seasonal_trends[which.max(seasonal_trends$Average_Price), ]
 
-# Define colors for seasons
-season_colors <- c("Spring" = "green", "Summer" = "yellow", "Fall" = "orange", "Winter" = "blue")
-
-ggplot(seasonal_trends, aes(x = Season, y = price, fill = Season)) +
+# Plotting
+ggplot(seasonal_trends, aes(x = Season, y = Average_Price, fill = Season)) +
   geom_bar(stat = "identity") +
-  geom_text(data = global_max_seasonal, aes(x = Season, y = price, label = paste("Global Max:", round(price, 2))), vjust = -0.5) +
-  scale_fill_manual(values = season_colors) +
+  geom_text(data = global_max_seasonal, aes(label = paste("Global Max:", round(Average_Price, 2)), y = Average_Price), vjust = -0.5) +
   labs(title = "Seasonal Trends in Average House Prices", x = "Season", y = "Average Price") +
   theme_minimal()
+
 ```
 
 ```{r seasonal_trends_count, echo = FALSE, include = TRUE}
-# Seasonal Trends in Count of Homes Sold
-seasonal_counts <- table(train_df_non_linear$Season)
-seasons <- c("Spring", "Summer", "Fall", "Winter")
-seasonal_counts_df <- data.frame(Season = factor(seasons, levels = seasons), Count = as.numeric(seasonal_counts))
+# Count homes sold for each season
+seasonal_counts <- c(
+  sum(train_df_non_linear$season_Winter == 1),
+  sum(train_df_non_linear$season_Spring == 1),
+  sum(train_df_non_linear$season_Summer == 1),
+  sum(train_df_non_linear$season_Fall == 1)
+)
+seasonal_counts_df <- data.frame(Season = c("Winter", "Spring", "Summer", "Fall"), Count = seasonal_counts)
 
 # Find the global maximum
 global_max_count_seasonal <- seasonal_counts_df[which.max(seasonal_counts_df$Count), ]
 
+# Plotting
 ggplot(seasonal_counts_df, aes(x = Season, y = Count, fill = Season)) +
   geom_bar(stat = "identity") +
-  geom_text(data = global_max_count_seasonal, aes(x = Season, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +
-  scale_fill_manual(values = season_colors) +
+  geom_text(data = global_max_count_seasonal, aes(label = paste("Global Max:", Count), y = Count), vjust = -0.5) +
   labs(title = "Seasonal Trends in Count of Homes Sold", x = "Season", y = "Count of Homes Sold") +
   theme_minimal()
+
 ```
 
 #### Week of the Year Trends in Average House Prices
@@ -1038,7 +1030,6 @@ linear_model_initial <- lm(price ~ ., data = train_df_linear)
 
 # Extracting used features from the model
 used_features <- extract_and_display_features(linear_model_initial, train_df_linear, target_var = 'price')
-print(used_features)
 
 # Subsetting the train and test dataframes with the used features
 tryCatch({
@@ -1139,7 +1130,7 @@ view_model_results(df_results)
 1. **Multicollinearity Check**: We will calculate the Variance Inflation Factor (VIF) for each predictor to identify multicollinearity, which can inflate the variance of the estimated regression coefficients and make the model less reliable.
 
 ```{r inital_model_vif_examinaiton}
-print(vif(linear_model_initial))
+vif(linear_model_initial)
 ```
 
 **Explanation**: In this section, we load the necessary libraries for modeling, including `lmtest` and `car`. We then use the `lm()` function to create the initial OLS regression model, where we predict the `price` based on all available features in the `train_df` dataset. The `summary()` function provides detailed information about the model, including coefficients, significance levels, and goodness-of-fit statistic# Feature Evaluation
