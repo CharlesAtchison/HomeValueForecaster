@@ -1,0 +1,27 @@
+### Regression Tree
+```{r regtree}
+train_df_reg <- train_df_logis[ , -which(names(train_df_logis) %in% c("price_cat"))]
+test_df_reg <- test_df_logis[ , -which(names(test_df_logis) %in% c("price_cat"))]
+
+library(rpart)
+m.rpart <- rpart(price ~ ., data = train_df_reg)
+m.rpart
+
+#evaluating model performance
+p.rpart <- predict(m.rpart, test_df_reg)
+summary(p.rpart)
+summary(test_df_reg$price)
+cor(p.rpart, test_df_reg$price)
+
+#Measuring performance with the mean absolute error
+MAE <- function(actual, predicted) {mean(abs(actual - predicted))}
+#The MAE for our predictions is then:
+MAE(test_df_reg$price,p.rpart)
+#Measuring performance with the SSE
+SSE <- function(actual, predicted) {sum((actual - predicted)^2)}
+SSE(test_df_reg$pricey,p.rpart)
+#Measuring performance with the RSquare
+R2 <- function(actual, predicted) {sum((actual - predicted)^2)/((length(actual)-1)*var(actual))}
+1-R2(test_df_reg$price,p.rpart)
+
+```
