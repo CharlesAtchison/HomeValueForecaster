@@ -1,0 +1,32 @@
+### neuro network
+```{r}
+#In Classification Using Nearest Neighbors example, we defined our own normalize() function as:
+normalize <- function(x) {return((x - mean(x)) / (max(x) - mean(x)))}
+# to make it simple for NN, include only numeric vars.
+train_norm <- train_df_logis[ , -which(names(train_df_logis) %in% c("season", "price_cat"))]
+train_norm$waterfront <- as.numeric(train_norm$waterfront)
+train_norm <- as.data.frame(lapply(train_norm, normalize))
+test_norm <- test_df_logis[ , -which(names(test_df_logis) %in% c("season", "price_cat"))]
+test_norm$waterfront <- as.numeric(test_norm$waterfront)
+test_norm <- as.data.frame(lapply(test_norm, normalize))
+
+# NN model
+library(neuralnet)
+nn_model <- neuralnet(price ~ .,data = train_norm)
+plot(nn_model)
+
+# model performance
+model_results <- compute(nn_model, test_norm)
+predicted_price <- model_results$net.result
+cor(predicted_price, test_norm$price) # 0.9, which indicates model is good.
+
+# increase # of hidden nodes -> Minako cannot run this
+nn_model2 <- neuralnet(price ~ .,data = train_norm, hidden = 5)
+plot(nn_model2)
+model_results2 <- compute(nn_model2, test_norm)
+predicted_price2 <- model_results2$net.result
+cor(predicted_price2, test_norm$price)
+
+
+
+```
