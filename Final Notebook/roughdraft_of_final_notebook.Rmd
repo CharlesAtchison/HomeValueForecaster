@@ -1394,47 +1394,60 @@ train_df_non_linear_outliers <- train_df_non_linear[-influential_obs, ]
 ```
 
 ```{r refit_all_OLS_models, echo = FALSE}
-# # Fit a linear regression model to the training data
-# linear_model_initial_outliers <- lm(price ~ ., data = train_df_linear_outliers)
-#
-# # Evaluate the initial linear model
-# df_results <- evaluate_model("OLS_linear_outliers", linear_model_initial_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results)
-#
-# # Conditional logic based on the update_model_parameters flag
-# if (update_model_parameters) {
-#   # Run each of the stepwise regression models and update the JSON file
-#   # Step model both
-#   model_both <- ols_step_both_p(linear_model_initial_outliers, pent=0.35, prem=0.05)
-#   features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
-#   update_model_json("OLS_Step_Both_outliers", features_both, json_filepath)
-#
-#   # Step model Backward
-#   model_backward <- ols_step_backward_p(linear_model_initial_outliers, pent=0.35,prem = 0.05)
-#   features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
-#   update_model_json("OLS_Step_Backward_outliers", features_backward, json_filepath)
-#
-#   # Step model forward
-#   model_forward <- ols_step_forward_p(linear_model_initial_outliers, pent=0.35, penter = 0.05)
-#   features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
-#   update_model_json("OLS_Step_Forward_outliers", features_forward, json_filepath)
-# } else {
-#   # Load model parameters from JSON and build models
-#   model_params <- fromJSON(json_filepath)
-#
-#   # Create models based on the loaded features
-#   if (all(c("OLS_Step_Both_outliers", "OLS_Step_Backward_outliers", "OLS_Step_Forward_outliers") %in% names(model_params))) {
-#     # For each model type, create the model using the features stored in the JSON
-#     model_both <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Both_outliers)
-#     model_backward <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Backward_outliers)
-#     model_forward <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Forward_outliers)
-#   } else {
-#     stop("Required model parameters are missing in the JSON file.")
-#   }
-# }
-#
-# # Show initial linear model results
-# summary(linear_model_initial_outliers)
-#
-# view_model_results(df_results)
+# Fit a linear regression model to the training data
+linear_model_initial_outliers <- lm(price ~ ., data = train_df_linear_outliers)
+
+# Evaluate the initial linear model
+df_results <- evaluate_model("OLS_Linear_outliers", linear_model_initial_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results = df_results)
+
+# Conditional logic based on the update_model_parameters flag
+if (update_model_parameters) {
+  # Run each of the stepwise regression models and update the JSON file
+  # Step model both
+  model_both_outliers <- ols_step_both_p(linear_model_initial_outliers, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(model_both_outliers$model)), "(Intercept)")
+  update_model_json("OLS_Step_Both_outliers", features_both, json_filepath)
+
+  # Step model Backward
+  model_backward_outliers <- ols_step_backward_p(linear_model_initial_outliers, pent=0.35,prem = 0.05)
+  features_backward <- setdiff(names(coef(model_backward_outliers$model)), "(Intercept)")
+  update_model_json("OLS_Step_Backward_outliers", features_backward, json_filepath)
+
+  # Step model forward
+  model_forward_outliers <- ols_step_forward_p(linear_model_initial_outliers, pent=0.35, penter = 0.05)
+  features_forward <- setdiff(names(coef(model_forward_outliers$model)), "(Intercept)")
+  update_model_json("OLS_Step_Forward_outliers", features_forward, json_filepath)
+} else {
+  # Load model parameters from JSON and build models
+  model_params <- fromJSON(json_filepath)
+
+  # Create models based on the loaded features
+  if (all(c("OLS_Step_Both_outliers", "OLS_Step_Backward_outliers") %in% names(model_params))) {
+    # For each model type, create the model using the features stored in the JSON
+    # Create OLS Both model
+    model_both_outliers <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Both_outliers)
+    # Create OLS Backward model
+    model_backward_outliers <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Backward_outliers)
+    # Create OLS Forward model
+    model_forward_outliers <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Forward_outliers)
+
+  } else {
+    stop("Required model parameters are missing in the JSON file.")
+  }
+}
+
+# Evaluate the Both OLS reg
+df_results <- evaluate_model("OLS_Step_Both_outliers", model_both_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate the Backward OLS reg
+df_results <- evaluate_model("OLS_Step_Backward_outliers", model_backward_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results)
+
+# Evalute the Forward OLS reg
+df_results <- evaluate_model("OLS_Step_Forward_outliers", model_forward_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results)
+
+# Show initial linear model results
+summary(linear_model_initial_outliers)
+
+view_model_results(df_results)
 ```
 
