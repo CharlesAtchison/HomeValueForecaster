@@ -916,7 +916,7 @@ Up to this point, we have successfully conducted an exploratory data analysis (E
 To commence the model development process, we establish an Ordinary Least Squares (OLS) regression model as our baseline. This initial model utilizes the features that have undergone transformation and cleaning during the exploratory data analysis (EDA) phase. To maintain data quality, enhance model performance, and facilitate interpretability, we begin by removing columns introduced in prior graphical iterations. Additionally, we employ the standard data preprocessing practice of dropping columns with missing values (NA) to ensure dataset integrity. This step ensures that our subsequent analyses and models are built upon a robust and complete dataset, minimizing errors and potential biases.
 
 ```{r initial_model, echo = FALSE, include = FALSE}
-# Drop columns created for visualizations in prior steps
+# Drop columns created for visualizations in prior steps, and columns that have almost perfect correlation and multicollinearity.
 train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3')]
 train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3')]
 
@@ -1116,12 +1116,12 @@ if (update_model_parameters) {
   update_model_json("OLS_Step_Both", features_both, json_filepath)
 
   # Step model Backward
-  model_backward <- ols_step_backward_p(linear_model_initial, prem = 0.05)
+  model_backward <- ols_step_backward_p(linear_model_initial, pent=0.35, prem = 0.05)
   features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
   update_model_json("OLS_Step_Backward", features_backward, json_filepath)
 
   # Step model foward
-  model_forward <- ols_step_forward_p(linear_model_initial, penter = 0.05)
+  model_forward <- ols_step_forward_p(linear_model_initial, pent=0.35, penter = 0.05)
   features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
   update_model_json("OLS_Step_Forward", features_forward, json_filepath)
 } else {
@@ -1138,6 +1138,9 @@ if (update_model_parameters) {
     stop("Required model parameters are missing in the JSON file.")
   }
 }
+
+# Show inital linear model results
+summary(linear_model_initial)
 
 view_model_results(df_results)
 ```
@@ -1160,7 +1163,7 @@ view_model_results(df_results)
 
 #### Model Fit
 - **R-squared (0.8404)**: Approximately 84.04% of the variability in real estate prices is explained by the model, indicating a strong fit.
-- **Adjusted R-squared (0.8393)**: Adjusted for the number of predictors, this value reaffirms the model's effectiveness.
+- **Adjusted R-squared (0.8393)**: Adjusted for the number of predictors, this value reaffirms the model’s effectiveness.
 
 #### Coefficient Analysis
 - **Significant Predictors**: Features like `sqft_living`, `waterfront1`, and `bedrooms` have significant coefficients, implying a notable impact on housing prices.
@@ -1172,6 +1175,266 @@ view_model_results(df_results)
 #### Outliers and Residuals
 - **Large Residuals**: The considerable spread in residuals (from -1518789 to 3645881) may indicate the presence of outliers or non-linear relationships not captured by the model.
 
-### Next Steps
+### Model Diagnostics and Assumptions
 
-1. **Multicollinearity Check**: We will calculate the Variance Inflation Factor (VIF) for each predictor to identify multicollinearity, which can inflate the variance of the estimated regression coefficients and make the model less reliable.
+#### Checking Model Assumptions
+
+As we scrutinize our OLS model's assumptions through diagnostic plotting, we encounter significant insights that warrant our attention and action.
+
+##### Residuals vs Fitted Plot
+
+The residuals vs fitted plot is our first stop to assess the assumption of linearity. The ideal scenario is a random spread of residuals around the horizontal axis, indicating a linear relationship between predictors and the response.
+
+```{r residuals_vs_fitted_plot, echo = FALSE}
+plot(linear_model_initial, 1)
+```
+
+**Observation**: A discernible pattern in the residuals suggests that our model may not be capturing some of the non-linear relationships.
+**Points of Concern**: Specific points, notably labeled 830 and 19140, stray from the general cluster, hinting at potential outliers or influential observations.
+
+##### Normal Q-Q Plot
+
+The Q-Q plot offers a visual comparison of the distribution of residuals against a perfectly normal distribution. Deviations from the diagonal indicate departures from normality.
+
+```{r QQ_plot, echo = FALSE}
+plot(linear_model_initial, 2)
+```
+
+**Observation**: The tails of our plot, particularly the right tail, show a clear departure from normality, with several points veering off the expected line.
+**Specific Note**: The points at the upper end, including 4320 and 19140, are especially distant from the line, suggesting they could be outliers with a substantial effect on our model's performance.
+
+##### Scale-Location Plot
+
+Also known as the spread-location plot, it's used to check for equal variance of residuals (homoscedasticity).
+
+```{r scale_location_plot, echo = FALSE}
+plot(linear_model_initial, 3)
+```
+
+**Observation**: The red line's upward trajectory indicates an increase in the spread of residuals as the fitted values rise, which is a classic sign of heteroscedasticity.
+
+##### Residuals vs Leverage Plot
+
+This plot helps us identify influential data points that could unduly sway our model's predictions.
+
+```{r residuals_vs_leverage_plot, echo = FALSE}
+plot(linear_model_initial, 5)
+```
+
+**Observation**: Several points fall outside the Cook's distance lines, with points 3405, 9381 and 11944 appearing as particularly influential to our regression estimates.
+
+##### Cook's Distance Plot
+
+The Cook's distance plot is instrumental in quantifying the influence of each data point.
+
+```{r cooks_distance_plot, echo = FALSE}
+plot(linear_model_initial, 4)
+```
+
+**Observation**: The spikes in the plot, notably for points 3405, 9381, and 11944, surpass the typical threshold, suggesting they are disproportionately influencing the model.
+
+### Next Steps in Model Diagnostics
+
+Having thoroughly examined the diagnostic plots for our OLS regression model, we have identified several areas requiring intervention to ensure the robustness of our model. Here's how we propose to address these:
+
+#### Addressing Non-linearity
+
+The Residuals vs Fitted plot signaled potential non-linearity, which could be corrected by:
+
+- **Integrating Polynomial Terms**: We should experiment with adding polynomial terms for continuous predictors to capture any non-linear relationships.
+- **Exploring Interaction Effects**: If certain predictors interact in a non-additive manner, including interaction terms might offer a better fit.
+
+#### Stabilizing Variance
+
+The Scale-Location plot indicated the presence of heteroscedasticity, suggesting our model's residuals have non-constant variance. To mitigate this:
+
+- **Transformation of Response Variable**: We could apply a log transformation to the response variable, `price`, which often stabilizes variance in the presence of heteroscedasticity.
+- **Implementing Weighted Regression**: A weighted least squares approach could also be employed, giving different weights to observations based on their fitted values.
+
+#### Normalizing Residuals
+
+The Normal Q-Q plot showed deviations from normality, especially in the tails, prompting us to consider:
+
+- **Applying Transformations**: Besides log transformations, other transformations like square root or inverse could be applied to achieve normality in the residuals.
+- **Leveraging Non-linear Models**: Should transformations fail to yield normally distributed residuals, we might pivot to non-linear models better suited to the data structure.
+
+#### Managing Influential Observations
+
+The Residuals vs Leverage plot, coupled with the Cook's Distance plot, highlighted observations with undue influence on our model's estimates. We'll approach this by:
+
+- **Investigating High-leverage Points**: Points like 3405, 9381, and 11944 require close examination to determine their legitimacy and impact on the model.
+- **Considering Removal or Retention**: Post investigation, we'll make informed decisions about removing these points or alternatively, leveraging robust regression techniques to diminish their influence.
+
+#### Refinement and Validation
+
+As we implement these adjustments, we will:
+
+- **Continually Refine Our Model**: Each change brings us closer to a model that accurately captures the underlying data structure.
+- **Rigorously Validate Adjustments**: It's vital to validate our model using cross-validation techniques to ensure our changes generalize well to unseen data.
+
+Through these methodical steps, we aim to enhance the reliability and validity of our model's predictive power, ensuring that it not only meets statistical assumptions but also aligns with empirical data.
+
+### Diagnostics for Homoscedasticity and Normality of Errors
+
+#### Breusch-Pagan Test
+
+We will perform the Breusch-Pagan test to examine if the assumption of homoscedasticity holds in our model. This test will help us understand if the variances of the residuals are constant across levels of the independent variables.
+
+```{r breusch_pagan_test, echo = FALSE}
+# Breusch-Pagan Test
+bp_test_results <- bptest(linear_model_initial, studentize = FALSE)
+
+# Output the results of the Breusch-Pagan test
+print(bp_test_results)
+```
+
+The Breusch-Pagan test results with a p-value significantly lower than the alpha level of 0.05 suggests that we reject the null hypothesis of constant error variances in favor of the alternative hypothesis, indicating the presence of heteroscedasticity in our model residuals.
+
+To further assess the normality of our model's residuals, we will conduct the Anderson-Darling normality test, especially relevant given our large sample size.
+
+```{r anderson_darling_test, echo = FALSE}
+# Anderson-Darling normality test
+ad_test_results <- ad.test(linear_model_initial$residuals)
+
+# Output the results of the Anderson-Darling test
+print(ad_test_results)
+```
+
+If the p-value from the Anderson-Darling test is less than our alpha level of 0.05, we will reject the null hypothesis that the errors are normally distributed.
+
+#### Breusch-Pagan Test Results
+
+The results from the Breusch-Pagan test are as follows:
+
+- **Test Statistic (BP)**: `r bp_test_results$statistic`
+- **Degrees of Freedom (df)**: `r bp_test_results$parameter`
+- **P-value**: `r bp_test_results$p.value`
+
+Given that our p-value is `r ifelse(bp_test_results$p.value < 0.05, "less", "greater")` than 0.05, we `r ifelse(bp_test_results$p.value < 0.05, "reject", "fail to reject")` the null hypothesis, indicating that `r ifelse(bp_test_results$p.value < 0.05, "heteroscedasticity is likely present", "the assumption of homoscedasticity holds")` in our residuals.
+
+#### Anderson-Darling Test Results
+
+The results from the Anderson-Darling test are as follows:
+
+- **A-squared**: `r ad_test_results$statistic`
+- **P-value**: `r ad_test_results$p.value`
+
+Since the p-value is `r ifelse(ad_test_results$p.value < 0.05, "less", "greater")` than 0.05, we `r ifelse(ad_test_results$p.value < 0.05, "reject", "fail to reject")` the null hypothesis, suggesting that `r ifelse(ad_test_results$p.value < 0.05, "errors are not normally distributed", "errors are normally distributed")`.
+
+### Outlier Detection
+
+To further investigate nonlinearity, constant variance of errors, and outliers, we examine the data points with potentially high influence.
+
+#### Residuals vs Leverage Plot
+
+We use the `ols_plot_resid_lev` function to create a plot for detecting outliers and observations with high leverage.
+
+```{r residuals_vs_leverage_plot_v2, echo=FALSE}
+ols_plot_resid_lev(linear_model_initial)
+```
+
+- **Observation**: Look for observations that have high leverage (extreme values on the right side of the plot) and potentially strong influence on the model.
+
+#### Residuals vs Fitted Plot
+
+We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect non-linearity, constant variances, and outliers in residuals.
+
+```{r residuals_vs_fitted_plot_v2, echo=FALSE}
+ols_plot_resid_stud_fit(linear_model_initial)
+```
+
+- **Observation**: Inspect the plot for patterns, curvature, or outliers in residuals.
+
+#### Cook's Distance
+
+We calculate Cook's distance for each observation to identify influential data points.
+
+```{r cooks_distance_calculation, echo=FALSE}
+# Calculate Cook's distance for each observation
+cooksd <- cooks.distance(linear_model_initial)
+
+# Create a plot of Cook's distance
+plot(cooksd, type = "h", main = "Cook's Distance", ylab = "Cook's Distance", xlab = "Observation Index")
+abline(h = 0.04, col = "red", lwd = 2) # .04 is a common threshold for Cook's distance
+
+# Define the threshold for Cook's distance
+threshold <- 0.04
+
+# Identify observations where Cook's distance exceeds the threshold
+high_cooksd <- which(cooksd > threshold)
+
+# Add labels to the points above the threshold
+text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
+```
+
+- **Observation**: Cook's distance quantifies the influence of each observation. High values indicate strong influence.
+
+#### Filtering Outliers
+
+We filter the data points with Cook's distance >= 0.04, which is a reasonable threshold for identifying influential data points.
+
+```{r outlier_filtering, echo=FALSE, include = TRUE}
+# Define the threshold for Cook's distance
+threshold <- 0.04
+
+# Identify the indices of influential observations
+influential_obs <- which(cooksd > threshold)
+
+print(influential_obs)
+```
+
+- **Conclusion**: The `outliers` dataframe contains data points with high influence on the model.
+
+
+
+```{r outlier_removal}
+# Remove outliers from both datasets
+train_df_linear_outliers <- train_df_linear[-influential_obs, ]
+train_df_non_linear_outliers <- train_df_non_linear[-influential_obs, ]
+```
+
+```{r refit_all_OLS_models, echo = FALSE}
+# # Fit a linear regression model to the training data
+# linear_model_initial_outliers <- lm(price ~ ., data = train_df_linear_outliers)
+#
+# # Evaluate the initial linear model
+# df_results <- evaluate_model("OLS_linear_outliers", linear_model_initial_outliers, train_df_linear_outliers, test_df_linear, target_var = 'price', df_results)
+#
+# # Conditional logic based on the update_model_parameters flag
+# if (update_model_parameters) {
+#   # Run each of the stepwise regression models and update the JSON file
+#   # Step model both
+#   model_both <- ols_step_both_p(linear_model_initial_outliers, pent=0.35, prem=0.05)
+#   features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
+#   update_model_json("OLS_Step_Both_outliers", features_both, json_filepath)
+#
+#   # Step model Backward
+#   model_backward <- ols_step_backward_p(linear_model_initial_outliers, pent=0.35,prem = 0.05)
+#   features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
+#   update_model_json("OLS_Step_Backward_outliers", features_backward, json_filepath)
+#
+#   # Step model forward
+#   model_forward <- ols_step_forward_p(linear_model_initial_outliers, pent=0.35, penter = 0.05)
+#   features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
+#   update_model_json("OLS_Step_Forward_outliers", features_forward, json_filepath)
+# } else {
+#   # Load model parameters from JSON and build models
+#   model_params <- fromJSON(json_filepath)
+#
+#   # Create models based on the loaded features
+#   if (all(c("OLS_Step_Both_outliers", "OLS_Step_Backward_outliers", "OLS_Step_Forward_outliers") %in% names(model_params))) {
+#     # For each model type, create the model using the features stored in the JSON
+#     model_both <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Both_outliers)
+#     model_backward <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Backward_outliers)
+#     model_forward <- create_model(train_df_linear_outliers, 'price', model_params$OLS_Step_Forward_outliers)
+#   } else {
+#     stop("Required model parameters are missing in the JSON file.")
+#   }
+# }
+#
+# # Show initial linear model results
+# summary(linear_model_initial_outliers)
+#
+# view_model_results(df_results)
+```
+
