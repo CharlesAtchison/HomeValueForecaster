@@ -1,0 +1,513 @@
+---
+title: "EXT CSCI E-106 Model Data Class Group Project Template"
+author: "Charles Atchison"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    css: "extra_html_files/style.css"
+    includes:
+      before_body: extra_html_files/header.html
+      after_body: extra_html_files/copyright.html
+---
+
+```{r setup, include=FALSE}
+# List of required packages, including 'here'
+required_packages <- c(
+  "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies",
+  "faraway", "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics",
+  "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
+  "RColorBrewer", "scales", "purrr"
+)
+
+# Establish CRAN for package installs
+options(repos = c(CRAN = "https://ftp.osuosl.org/pub/cran/")) # Set the CRAN mirror
+
+# Check if each package is installed; if not, install it
+for (pkg in required_packages) {
+  if (!(pkg %in% installed.packages()[,"Package"])) {
+    install.packages(pkg, dependencies = TRUE)
+  }
+}
+
+# Load all the packages
+lapply(required_packages, library, character.only = TRUE)
+
+# Build the full path to the directory containing the Rmd file
+rmd_dir <- dirname(here())
+
+# Navigate up one directory and then to the CSV data file
+# csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
+csv_file <- file.path("/cloud/project", "KC_House_Sales.csv")
+
+# Read the CSV file into a data frame
+df <- read.csv(csv_file)
+```
+
+
+## I. Introduction: Contextualizing the King County House Price Prediction Model
+
+### Problem Statement and Objective
+In the vibrant and diverse King County real estate market, including Seattle's dynamic environment, property prices are shaped by an array of variables. The primary challenge is to construct a predictive model that can accurately estimate house prices within this area. Utilizing a comprehensive dataset that encompasses diverse house attributes, this model aims to decode the complex mechanisms influencing house pricing.
+
+### Purpose of the Model
+
+#### <ins>Predictive Accuracy</ins>
+The model strives to offer precise price predictions for properties in King County by effectively correlating various house features with their market prices. This aspect is crucial in understanding and quantifying how different characteristics impact the value of a property.
+
+#### <ins>Analytical Insight</ins>
+A key goal of the model is to unearth and interpret the multitude of factors that play a significant role in determining house prices within the region. This venture goes beyond mere statistical analysis to provide practical, real-world insights, thereby enriching the understanding of real estate dynamics for all stakeholders.
+
+#### <ins>Decision Support</ins>
+The model is designed to be a powerful asset for a range of users, including real estate agents, prospective buyers, and sellers. By offering accurate price predictions and deep market insights, it aids in making informed and strategic decisions in the property market.
+
+### Scope and Methodology
+
+#### <ins>Data Preprocessing and Exploration</ins>
+Initial data preparation is vital to ensure accuracy in the model. This stage involves cleansing the data, converting data types, and creating dummy variables for categorical features. Following this, an exploratory data analysis (EDA) is conducted to delve into the dataset's characteristics, examining statistical summaries and relationships between variables.
+
+#### <ins>Feature Selection and Model Assumptions</ins>
+The process involves using statistical techniques like stepwise regression for feature selection and conducting tests like the Variable Inflation Factor (VIF) and Anderson-Darling to check for multicollinearity and normality, respectively. Additionally, diagnostic plots are used for detecting outliers.
+
+#### <ins>Model Development and Validation</ins>
+A range of models are employed and assessed:
+
+  <ins>**Linear Models:**</ins> Including Ordinary Least Squares (OLS) and Weighted Least Squares (WLS).
+
+  <ins>**Regularization Techniques:**</ins> Such as Ridge, Lasso, and Elastic Net to handle multicollinearity.
+
+  <ins>**Robust Regression:**</ins> Utilizing Huber’s method to minimize the influence of outliers.
+
+  <ins>**Advanced Models:**</ins> Exploring alternatives like regression trees, neural networks (NN), or support vector machines (SVM).
+
+#### <ins>Model Performance Evaluation</ins>
+The model's effectiveness is evaluated using metrics like RMSE and R-squared, across both the training (70%) and testing (30%) data sets, to ensure its reliability and applicability in real-world scenarios.
+
+### Conclusion
+This introduction sets the stage for a comprehensive analysis, highlighting the multifaceted approach adopted in this project. From meticulous data preparation to sophisticated modeling, the endeavor is not just to predict house prices accurately but also to provide valuable insights into King County's real estate market.
+
+
+## II. Description of the Data and Quality
+
+### Dataset Overview and Detailed Description
+The King County house sales dataset is a comprehensive collection of 21,613 observations, each representing a unique house sale. The dataset encompasses a variety of features that describe different aspects of the houses sold. Below is a detailed description of each variable in the dataset:
+
+| Variable       | Description                                                                                          |
+|----------------|------------------------------------------------------------------------------------------------------|
+| `id`           | Unique ID for each home sold (not used as a predictor)                                               |
+| `date`         | Date of the home sale                                                                                |
+| `price`        | Price of each home sold                                                                              |
+| `bedrooms`     | Number of bedrooms                                                                                   |
+| `bathrooms`    | Number of bathrooms, ".5" accounts for a bathroom with a toilet but no shower                        |
+| `sqft_living`  | Square footage of the apartment interior living space                                                |
+| `sqft_lot`     | Square footage of the land space                                                                     |
+| `floors`       | Number of floors                                                                                     |
+| `waterfront`   | A dummy variable for whether the apartment was overlooking the waterfront or not                     |
+| `view`         | An index from 0 to 4 of how good the view of the property was                                        |
+| `condition`    | An index from 1 to 5 on the condition of the apartment                                               |
+| `grade`        | An index from 1 to 13 about building construction and design quality                                |
+| `sqft_above`   | The square footage of the interior housing space above ground level                                  |
+| `sqft_basement`| The square footage of the interior housing space below ground level                                  |
+| `yr_built`     | The year the house was initially built                                                               |
+| `yr_renovated` | The year of the house’s last renovation                                                              |
+| `zipcode`      | The zipcode area the house is in                                                                     |
+| `lat`          | Latitude coordinate                                                                                  |
+| `long`         | Longitude coordinate                                                                                 |
+| `sqft_living15`| The square footage of interior housing living space for the nearest 15 neighbors                     |
+| `sqft_lot15`   | The square footage of the land lots of the nearest 15 neighbors                                      |
+
+### Data Quality and Transformation
+
+#### <ins>Data Cleaning and Transformation</ins>
+The dataset's preparation involved meticulous cleaning and transformation processes to optimize it for accurate predictive analysis. Key steps undertaken include:
+
+1. **Exclusion of Non-Predictive Variables**:
+   - The `id` variable, representing a unique identifier for each house sale, does not contribute to predicting house prices and was therefore removed. This step is crucial in focusing the model on variables that influence the outcome (price).
+   - Unlike other non-predictive variables, `lat` (latitude) and `long` (longitude) were initially retained for their crucial role in calculating geographical distances, which could potentially influence house prices.
+
+2. **Transformation of Data Types**:
+   - The `date` variable, initially in a string format, was transformed into a numeric format. This conversion is essential for incorporating the date into statistical models, as numeric representations are more amenable to various types of analysis.
+   - For variables like `price`, `sqft_living`, `sqft_lot`, etc., necessary conversions were performed to ensure they are in a suitable numeric format.
+
+3. **Creation of Dummy Variables for Categorical Data**:
+   - Categorical variables like `waterfront`, `view`, `condition`, and `grade` were transformed into dummy variables. This transformation is pivotal for regression analysis as it allows these non-numeric variables to be effectively included in the model.
+   - The process involved converting these categorical variables into a series of binary variables (0 or 1). This is particularly important for variables like `waterfront`, which is a binary indicator itself, and for ordinal variables like `view` and `condition`, which have intrinsic order but need to be numerically represented for modeling.
+
+4. **Handling Special Cases in Variables**:
+   - For variables like `bathrooms`, where values like "0.5" represent bathrooms with a toilet but no shower, the data was kept as is, considering these nuances convey important information about the house's characteristics.
+
+5. **Grouping and Clustering of Variables**:
+   - The `zipcode` variable was transformed by extracting the first three digits, which helps in reducing the number of dummy variables and preventing the model from becoming overly complex while still capturing the geographical influences on house prices.
+   - The `grade` variable was clustered into broader categories to simplify the model and focus on significant differences in construction and design quality.
+
+6. **Haversine Distance Calculation**:
+   - To incorporate the influence of location more precisely, the Haversine distance was calculated. This involved creating a function to calculate the distance between two geographical points (latitude and longitude) and applying this to our dataset.
+   - The calculation of `haversine_distance` is particularly significant for understanding the spatial relationships and proximity to key locations that might affect house prices.
+
+7. **Calculation of Convergence Point**:
+   - The dataset was used to identify a 'convergence point' – a central point derived from houses with the highest values. This point served as a reference to calculate each property's distance from a high-value central location, possibly a marker of a desirable area.
+   - This step was critical in ensuring that the model accounts for locational desirability without causing data leakage, as it was based solely on the training set.
+
+```{r data_transformation}
+# Data Preprocessing and Transformation
+set.seed(123)  # Setting a seed for reproducibility
+split_index <- sample(1:nrow(df), size = 0.7 * nrow(df))
+train_df <- df[split_index, ]
+test_df <- df[-split_index, ]
+
+# Remove non-numeric characters from the 'price' column and convert it to numeric
+train_df$price <- as.numeric(str_replace_all(train_df$price, "[^0-9.]", ""))
+test_df$price <- as.numeric(str_replace_all(test_df$price, "[^0-9.]", ""))
+
+# Calculation of Convergence Point: Determine the convergence point for high-value homes
+high_value_threshold <- quantile(train_df$price, probs = 0.90, na.rm = TRUE)  # Calculate the high-value threshold
+high_value_homes <- train_df[train_df$price >= high_value_threshold, ]  # Select high-value homes
+convergence_point <- c(mean(high_value_homes$lat, na.rm = TRUE), mean(high_value_homes$long, na.rm = TRUE))  # Calculate the convergence point
+
+# Data Transformation Function with Distance Binning Option
+transform_data <- function(df, convergence_point, linear_model) {
+  # Date Transformation: Convert the 'date' column to a Date object if present
+  if ("date" %in% colnames(df)) {
+    df$date <- as.Date(substr(as.character(df$date), 1, 8), format="%Y%m%d")
+
+    # Date-Time Feature Engineering: Extract various date-related features
+    df$year_sold <- lubridate::year(df$date)
+    df$month_sold <- lubridate::month(df$date)
+    df$day_sold <- lubridate::day(df$date)
+    df$season <- factor(lubridate::quarter(df$date), labels = c("Winter", "Spring", "Summer", "Fall"))
+    df$week_of_year <- lubridate::week(df$date)
+    df$day_of_year <- lubridate::yday(df$date)
+  }
+
+  # Creating Dummy Variables: Convert categorical variables into dummy variables
+  df <- df %>%
+    mutate(zipcode = as.factor(zipcode),
+           waterfront = as.factor(waterfront),
+           view = as.factor(view),
+           condition = as.factor(condition),
+           grade = as.character(grade)) %>%
+    dummy_cols(select_columns = c('zipcode', 'view', 'condition', 'grade'))
+
+  # Remove last dummy variables to avoid multicollinearity
+  if (linear_model) {
+    df <- df[, !(names(df) %in% c("zipcode_98199", "view_0", "condition_1", "grade_13"))]
+  }
+
+  # Haversine Distance Function: Calculate the distance between two points on Earth's surface
+  haversine_distance <- function(lat1, long1, lat2, long2) {
+    R <- 6371  # Earth radius in kilometers
+    delta_lat <- (lat2 - lat1) * pi / 180
+    delta_long <- (long2 - long1) * pi / 180
+    a <- sin(delta_lat/2)^2 + cos(lat1 * pi / 180) * cos(lat2 * pi / 180) * sin(delta_long/2)^2
+    c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+    d <- R * c  # Calculate the haversine distance
+    return(d)
+  }
+
+  # Calculate Haversine Distance
+  df$distance_to_convergence <- mapply(haversine_distance, df$lat, df$long,
+                                       MoreArgs = list(lat2 = convergence_point[1], long2 = convergence_point[2]))
+
+  # Remove columns that are no longer needed
+  df <- df[, !(names(df) %in% c("id", "date", "zipcode", "view", "condition", "grade"))]
+
+  return(df)
+}
+
+# Applying the transformation function to training and test sets
+train_df_linear <- transform_data(train_df, convergence_point, linear_model = TRUE)  # Transform the training data for linear models
+test_df_linear <- transform_data(test_df, convergence_point, linear_model = TRUE)    # Transform the test data for linear models
+train_df_non_linear <- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
+test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
+```
+
+
+
+### Logistic regression
+```{r logistic}
+# logistic regression with train dataset
+
+
+# transform zipcode perdictors
+indx.zipcode <- grepl('zipcode', colnames(train_df_non_linear))
+colname.zipcode <- colnames(train_df_non_linear)[indx.zipcode]
+train_df_logis <- train_df_non_linear
+test_df_logis <- test_df_non_linear
+calc.mean.price <- function(col, df) {
+  df.select <- df[df[,col] == 1,]
+  mean.price <- mean(df.select$price)
+  return (mean.price)
+}
+train_df_logis$zipcode.meanprice <- 0.0
+test_df_logis$zipcode.meanprice <- 0.0
+for (z in colname.zipcode) {
+  # print (z)
+  train_df_logis[train_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, train_df_logis)
+  test_df_logis[test_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, test_df_logis)
+}
+
+# create train without zipcode and lat long
+train_df_logis <- train_df_logis[,!indx.zipcode]
+train_df_logis <- train_df_logis[ , -which(names(train_df_logis) %in% c("lat","long"))]
+test_df_logis <- test_df_logis[,!indx.zipcode]
+test_df_logis <- test_df_logis[ , -which(names(test_df_logis) %in% c("lat","long"))]
+
+# get median on price
+price_med <- median(train_df_logis$price)
+price_med
+# create categorical response variable. 1=higher than median, 0=lower than median
+train_df_logis$price_cat <- 1
+train_df_logis[train_df_logis$price < price_med,]$price_cat <- 0
+train_df_logis$price_cat <- as.factor(train_df_logis$price_cat)
+table(train_df_logis$price_cat)
+
+price_med.test <- median(test_df_logis$price)
+price_med.test
+# create categorical response variable. 1=higher than median, 0=lower than median
+test_df_logis$price_cat <- 1
+test_df_logis[test_df_logis$price < price_med.test,]$price_cat <- 0
+test_df_logis$price_cat <- as.factor(test_df_logis$price_cat)
+table(test_df_logis$price_cat)
+
+# # remove outliers
+# outliers <- c("13244", "3098", "9986", "5127", "2627", "8814", "643")
+
+# logistic regression
+lmod <- glm(price_cat ~ . -price, family=binomial, train_df_logis)
+summary(lmod)
+# beta <- coef(lmod)
+# exp(beta)
+
+lmodr <- step(lmod, trace=0)
+summary(lmodr)
+length(summary(lmodr)$coefficients[,4])
+# review drop1 to confirm insignificant variables
+drop1(lmodr,test="Chi")
+
+#by reviewing drop1, only view_1 and view_2 are insignificant.
+#dropping view_1 first (highest pvalue, 0.124511 in summary)
+lmodr1<-update(lmodr, as.formula(paste(".~.-", "view_1")) )
+summary(lmodr1)
+length(summary(lmodr1)$coefficients[,4])
+drop1(lmodr1,test="Chi")
+
+#by reviewing drop1, only view_2 is insignificant.
+#dropping view_2 next (highest pvalue 0.281427 in summary)
+lmodr2<-update(lmodr1, as.formula(paste(".~.-", "view_2")) )
+summary(lmodr2)
+length(summary(lmodr2)$coefficients[,4])
+drop1(lmodr2,test="Chi") # now all variables are significant Chi test.
+
+#dropping grade_4 next (highest pvalue, 0.983187 in summary)
+lmodr3<-update(lmodr2, as.formula(paste(".~.-", "grade_4")) )
+summary(lmodr3)
+length(summary(lmodr3)$coefficients[,4]) 
+drop1(lmodr3,test="Chi") # all variables are significant Chi test.
+
+#dropping grade_11 next (highest pvalue, 0.930191 in summary)
+lmodr4<-update(lmodr3, as.formula(paste(".~.-", "grade_11")) )
+summary(lmodr4)
+length(summary(lmodr4)$coefficients[,4]) 
+drop1(lmodr4,test="Chi") # all variables are significant Chi test.
+
+#dropping season next (highest pvalue, Fall 0.853800 in summary)
+lmodr5<-update(lmodr4, as.formula(paste(".~.-", "season")) )
+summary(lmodr5)
+length(summary(lmodr5)$coefficients[,4]) # now All variables are significant.
+
+# confirm by anova whether we can drop variables.
+anova(lmodr5, lmod, test="Chi") # cannot be dropped
+anova(lmodr4, lmod, test="Chi") # cannot be dropped
+anova(lmodr3, lmod, test="Chi") # can be dropped
+
+lmodr.final <- lmodr3
+
+true_labels <- train_df_logis$price_cat
+exp<-cbind(true_labels,lmodr.final$fitted.values)
+exp[1:10,]
+
+#using 0.45 as a cutoff to predict the class. It has the highest F1
+predicted_probabilities <- predict(lmodr.final, train_df_logis, type="response")
+# find the best cutoff
+for (t in c(0.3,0.35, 0.4, 0.45, 0.5,0.6)) {
+  predictions <- ifelse(predicted_probabilities > t, 1, 0)
+  # Create confusion matrix
+  confusion_matrix <- caret::confusionMatrix(as.factor(predictions), 
+                                    as.factor(true_labels),
+                                    mode="prec_recall", positive = "1")
+  print (paste(t, confusion_matrix$byClass[[7]]))
+}
+
+# cutoff 0.45 has the highest F1
+predictions <- ifelse(predicted_probabilities > 0.45, 1, 0)
+# Create confusion matrix
+confusion_matrix <- caret::confusionMatrix(as.factor(predictions), 
+                                    as.factor(true_labels),
+                                    mode="prec_recall", positive = "1")
+
+confusion_matrix
+
+# test data 
+true_labels.test <- test_df_logis$price_cat
+predicted_probabilities.test <- predict(lmodr.final, test_df_logis, type="response")
+predictions.test <- ifelse(predicted_probabilities.test > 0.45, 1, 0)
+# Create confusion matrix
+confusion_matrix.test <- caret::confusionMatrix(as.factor(predictions.test), 
+                                    as.factor(true_labels.test),
+                                    mode="prec_recall", positive = "1")
+
+confusion_matrix.test
+
+confusion_matrix.output <- as.data.frame(rbind(c("train",round(confusion_matrix$byClass[[1]],3),
+                                    round(confusion_matrix$byClass[[2]],3),
+                                           round(confusion_matrix$byClass[[5]],3),
+                                           round(confusion_matrix$byClass[[7]],3)),
+                                         c("test",round(confusion_matrix.test$byClass[[1]],3),
+                                           round(confusion_matrix.test$byClass[[2]],3),
+                                           round(confusion_matrix.test$byClass[[5]],3),
+                                           round(confusion_matrix.test$byClass[[7]],3))) )      
+colnames(confusion_matrix.output) <- c("data","Sensitivity","Specificity","Precision","F1")
+confusion_matrix.output
+
+# # Hosmer-Lemeshow Goodness of Fit Test
+# library(ResourceSelection)
+# hoslem.test(lmodr.final$y,fitted(lmodr.final),g=10)
+```
+
+### zipcode
+```{r zipcode}
+zipcode_train <- train_df_non_linear
+indx.zipcode <- grepl('zipcode', colnames(train_df_non_linear))
+colname.zipcode <- colnames(train_df_non_linear)[indx.zipcode]
+
+calc.mean.price <- function(col) {
+  df.select <- zipcode_train[zipcode_train[,col] == 1,]
+  mean.price <- mean(df.select$price)
+  return (mean.price)
+}
+
+zipcode_train$zipcode.meanprice <- 0.0
+for (z in colname.zipcode) {
+  print (z)
+  print (calc.mean.price(z) )
+  # zipcode_train <- calc.mean.price(z)
+  zipcode_train[zipcode_train[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z)
+}
+
+# cor
+cor(zipcode_train$price, zipcode_train$zipcode.meanprice)
+
+# plot
+plot(zipcode_train$price, zipcode_train$zipcode.meanprice)
+
+```
+
+### Regression Tree
+```{r regtree}
+train_df_reg <- train_df_logis[ , -which(names(train_df_logis) %in% c("price_cat"))]
+test_df_reg <- test_df_logis[ , -which(names(test_df_logis) %in% c("price_cat"))]
+
+library(rpart)
+m.rpart <- rpart(price ~ ., data = train_df_reg)
+m.rpart
+
+#evaluating model performance with train data
+p.rpart <- predict(m.rpart, train_df_reg)
+summary(p.rpart)
+summary(train_df_reg$price)
+cor(p.rpart, train_df_reg$price)
+
+#evaluating model performance with test data
+p.rpart.test <- predict(m.rpart, test_df_reg)
+summary(p.rpart.test)
+summary(test_df_reg$price)
+cor(p.rpart.test, test_df_reg$price)
+
+#Measuring performance with the mean absolute error
+MAE <- function(actual, predicted) {mean(abs(actual - predicted))}
+#The MAE for our predictions is then:
+MAE(train_df_reg$price,p.rpart)
+MAE(test_df_reg$price,p.rpart.test)
+#Measuring performance with the SSE
+SSE <- function(actual, predicted) {sum((actual - predicted)^2)}
+SSE(train_df_reg$pricey,p.rpart)
+SSE(test_df_reg$pricey,p.rpart.test)
+#Measuring performance with the RSquare
+R2 <- function(actual, predicted) {sum((actual - predicted)^2)/((length(actual)-1)*var(actual))}
+1-R2(train_df_reg$price,p.rpart)
+1-R2(test_df_reg$price,p.rpart.test)
+
+```
+
+### Decision Tree
+```{r decisiont}
+### This model will find the affordable housing, which is below 200,000
+train_df_dec <- train_df_logis
+test_df_dec <- test_df_logis
+# create categorical response variable. 1=higher than 200,000, 0=lower than 200,000
+train_df_dec$price_low <- 1
+train_df_dec[train_df_dec$price > 200000,]$price_low <- 0
+train_df_dec$price_low <- as.factor(train_df_dec$price_low)
+table(train_df_dec$price_low)
+test_df_dec$price_low <- 1
+test_df_dec[test_df_dec$price > 200000,]$price_low <- 0
+test_df_dec$price_low <- as.factor(test_df_dec$price_low)
+table(test_df_dec$price_low)
+
+
+train_df_dec <- train_df_dec[ , -which(names(train_df_dec) %in% c("price", "price_cat"))]
+test_df_dec <- test_df_dec[ , -which(names(test_df_dec) %in% c("price", "price_cat"))]
+
+library(C50)
+price_model <- C5.0(train_df_dec[,-42], train_df_dec$price_low)
+#The price_model object now contains a C5.0 decision tree.
+price_model
+summary(price_model)
+
+plot(price_model)
+
+#evaluating model performance
+price_pred <- predict(price_model, test_df_dec)
+library(gmodels)
+CrossTable(test_df_dec$price_low, price_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
+           dnn = c('actual default', 'predicted default'))
+
+# Boosting
+price_boost10 <- C5.0(train_df_dec[,-42], train_df_dec$price_low,trials = 10)
+summary(price_boost10)
+
+```
+
+### neuro network
+```{r}
+#In Classification Using Nearest Neighbors example, we defined our own normalize() function as:
+normalize <- function(x) {return((x - mean(x)) / (max(x) - mean(x)))}
+# to make it simple for NN, include only numeric vars.
+train_norm <- train_df_logis[ , -which(names(train_df_logis) %in% c("season", "price_cat"))]
+train_norm$waterfront <- as.numeric(train_norm$waterfront)
+train_norm <- as.data.frame(lapply(train_norm, normalize))
+test_norm <- test_df_logis[ , -which(names(test_df_logis) %in% c("season", "price_cat"))]
+test_norm$waterfront <- as.numeric(test_norm$waterfront)
+test_norm <- as.data.frame(lapply(test_norm, normalize))
+
+# NN model
+library(neuralnet)
+nn_model <- neuralnet(price ~ .,data = train_norm)
+plot(nn_model)
+
+# model performance
+model_results <- compute(nn_model, test_norm)
+predicted_price <- model_results$net.result
+cor(predicted_price, test_norm$price) # 0.9, which indicates model is good.
+
+# # increase # of hidden nodes -> Minako cannot run this
+# nn_model2 <- neuralnet(price ~ .,data = train_norm, hidden = 5)
+# plot(nn_model2)
+# model_results2 <- compute(nn_model2, test_norm)
+# predicted_price2 <- model_results2$net.result
+# cor(predicted_price2, test_norm$price)
+
+
+
+```
+
