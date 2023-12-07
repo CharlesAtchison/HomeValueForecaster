@@ -18,7 +18,7 @@ train_df_dec <- train_df_dec[ , -which(names(train_df_dec) %in% c("price", "pric
 test_df_dec <- test_df_dec[ , -which(names(test_df_dec) %in% c("price", "price_cat"))]
 
 library(C50)
-price_model <- C5.0(train_df_dec, train_df_dec$price_low)
+price_model <- C5.0(train_df_dec[,-42], train_df_dec$price_low)
 #The price_model object now contains a C5.0 decision tree.
 price_model
 summary(price_model)
@@ -33,7 +33,7 @@ CrossTable(test_df_dec$price_low, price_pred,
            dnn = c('actual default', 'predicted default'))
 
 # Boosting
-price_boost10 <- C5.0(train_df_dec, train_df_dec$price_low,trials = 10)
+price_boost10 <- C5.0(train_df_dec[,-42], train_df_dec$price_low,trials = 10)
 summary(price_boost10)
 
 ```
