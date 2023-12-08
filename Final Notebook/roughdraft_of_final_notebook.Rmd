@@ -1021,6 +1021,16 @@ add_model_performance <- function(model_name, model, x_train, y_train, x_test, y
 #' @return NULL (it displays the table but doesn't return a value).
 
 view_model_results <- function(df_results, caption = "Model Comparison") {
+  # Identifying numeric columns other than "Model", "R_squared_train", and "R_squared_test"
+  cols_to_round <- setdiff(names(df_results[sapply(df_results, is.numeric)]), c("Model", "R_squared_train", "R_squared_test"))
+
+  # Round these specific columns to 2 decimal places
+  df_results[cols_to_round] <- lapply(df_results[cols_to_round], round, 2)
+
+  # Round R-squared columns to 4 decimal places
+  df_results$R_squared_train <- round(df_results$R_squared_train, 5)
+  df_results$R_squared_test <- round(df_results$R_squared_test, 5)
+
   # Display the dataframe using datatable
   datatable(
     df_results,
@@ -1033,6 +1043,7 @@ view_model_results <- function(df_results, caption = "Model Comparison") {
     )
   )
 }
+
 
 extract_and_display_features <- function(model, full_df, target_var) {
   # Extract features used in the model (excluding the intercept)
@@ -1456,7 +1467,7 @@ view_model_results(df_results)
 
 ```{r keras_NN}
 # Set to TRUE to run the actual NN
-update_model_parameters <- TRUE
+update_model_parameters <- FALSE
 
 # Define a normalization function
 normalize_data <- function(x) {
@@ -1498,8 +1509,10 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   # Initialize variables to store the best model and its lowest validation MAE
   best_model <- NULL
   lowest_val_mae <- Inf
-  batch_sizes <- c(32, 64, 128, 256)  # Different batch sizes to experiment with
-  epochs_list <- c(50, 100, 150)      # Different numbers of epochs to experiment with
+  best_batch_size <- NULL  # Store the best batch size
+  best_epochs <- NULL  # Store the best number of epochs
+  batch_sizes <- c(32, 64, 128, 256, 512)  # Different batch sizes to experiment with
+  epochs_list <- c(50, 100, 150, 200, 250)  # Different numbers of epochs to experiment with
 
   for (batch_size in batch_sizes) {
     for (epochs in epochs_list) {
@@ -1512,6 +1525,9 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
         layer_dense(units = 64, activation = 'relu') %>%
         layer_dense(units = 32, activation = 'relu') %>%
         layer_dense(units = 16, activation = 'relu') %>%
+        layer_dense(units = 8, activation = 'relu') %>%
+        layer_dense(units = 4, activation = 'relu') %>%
+        layer_dense(units = 2, activation = 'relu') %>%
         layer_dense(units = 1)
 
       # Compile the model
@@ -1535,9 +1551,15 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
       if (val_mae < lowest_val_mae) {
         lowest_val_mae <- val_mae
         best_model <- model
+        best_batch_size <- batch_size
+        best_epochs <- epochs
       }
     }
   }
+
+  # Print the best hyperparameters and their correlation
+  cat("Best Batch Size:", best_batch_size, "\n")
+  cat("Best Number of Epochs:", best_epochs, "\n")
 
   # Make predictions on the training and test data
   train_predictions <- predict(best_model, x = as.matrix(train_data[, -which(names(train_data) == "price")]))
