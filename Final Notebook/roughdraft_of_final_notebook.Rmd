@@ -16,8 +16,7 @@ required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies",
   "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "keras",
-  "reticulate"
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart"
 )
 
 # Establish CRAN for package installs
@@ -1203,7 +1202,7 @@ plot(linear_model_initial, 1)
 ```
 
 **Observation**: A discernible pattern in the residuals suggests that our model may not be capturing some of the non-linear relationships.
-**Points of Concern**: Specific points, notably labeled 830 and 19140, stray from the general cluster, hinting at potential outliers or influential observations.
+**Points of Concern**: Specific points, notably labeled 431, 9381, and 11944, stray from the general cluster, hinting at potential outliers or influential observations.
 
 ##### Normal Q-Q Plot
 
@@ -1214,7 +1213,7 @@ plot(linear_model_initial, 2)
 ```
 
 **Observation**: The tails of our plot, particularly the right tail, show a clear departure from normality, with several points veering off the expected line.
-**Specific Note**: The points at the upper end, including 4320 and 19140, are especially distant from the line, suggesting they could be outliers with a substantial effect on our model's performance.
+**Specific Note**: The points at the upper end, again including 431, 9381, and 11944, are especially distant from the line, suggesting they could be outliers with a substantial effect on our model's performance.
 
 ##### Scale-Location Plot
 
@@ -1356,7 +1355,7 @@ We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect
 ols_plot_resid_stud_fit(linear_model_initial)
 ```
 
-- **Observation**: Inspect the plot for patterns, curvature, or outliers in residuals.
+- **Observation**:
 
 #### Cook's Distance
 
@@ -1380,7 +1379,7 @@ high_cooksd <- which(cooksd > threshold)
 text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
 ```
 
-- **Observation**: Cook's distance quantifies the influence of each observation. High values indicate strong influence.
+- **Observation**:
 
 #### Filtering Outliers
 
@@ -1396,9 +1395,7 @@ influential_obs <- which(cooksd > threshold)
 print(influential_obs)
 ```
 
-- **Conclusion**: The `outliers` dataframe contains data points with high influence on the model.
-
-
+- **Conclusion**:
 
 ```{r outlier_removal}
 # Remove outliers from both datasets
@@ -1464,6 +1461,7 @@ summary(linear_model_initial_outliers)
 view_model_results(df_results)
 ```
 
+### Neural Network Model
 
 ```{r keras_NN}
 # Set to TRUE to run the actual NN
@@ -1601,6 +1599,8 @@ original_test_price <- test_df_non_linear$price
 
 # Train and evaluate the model
 if (update_model_parameters) {
+  library(keras)
+  library(reticulate)
   # Import python as the backend for using Keras
   use_python(python = "C:\\Users\\Charl\\AppData\\Local\\Programs\\Python\\Python39\\python.exe", required = TRUE)
   # Fetch metrics
@@ -1640,42 +1640,47 @@ view_model_results(df_results)
 train_df_reg <- train_df_logis[, !names(train_df_logis) %in% "price_cat"]
 test_df_reg <- test_df_logis[, !names(test_df_logis) %in% "price_cat"]
 
-# Check if 'price' column exists in the datasets
-if (!"price" %in% colnames(train_df_reg)) {
-  stop("Column 'price' not found in train_df_reg")
-}
-if (!"price" %in% colnames(test_df_reg)) {
-  stop("Column 'price' not found in test_df_reg")
-}
+# Define a broader range of hyperparameters to search
+tuneGrid <- expand.grid(
+  cp = seq(0.001, 0.1, by = 0.001)
+)
 
-# Fit a regression tree model
-m.rpart <- rpart(price ~ ., data = train_df_reg)
+# Create a custom tuning grid for rpart
+customControl <- trainControl(
+  method = "cv",
+  number = 5,
+  search = "grid",
+  verboseIter = FALSE
+)
 
-# Predictions for training and test datasets
-p.rpart_train <- predict(m.rpart, newdata = train_df_reg)
-p.rpart_test <- predict(m.rpart, newdata = test_df_reg)
+# Perform hyperparameter tuning with custom control
+model <- train(
+  price ~ .,
+  data = train_df_reg,
+  method = "rpart",
+  trControl = customControl,
+  tuneGrid = tuneGrid
+)
 
-# MAE, SSE, R2, RMSE Calculation Functions
-MAE <- function(actual, predicted) { mean(abs(actual - predicted)) }
-SSE <- function(actual, predicted) { sum((actual - predicted)^2) }
-R2 <- function(actual, predicted) { 1 - sum((actual - predicted)^2) / sum((actual - mean(actual))^2) }
-RMSE <- function(actual, predicted) { sqrt(mean((actual - predicted)^2)) }
+# Make predictions
+p.rpart_train <- predict(model, newdata = train_df_reg)
+p.rpart_test <- predict(model, newdata = test_df_reg)
 
 # Calculate metrics for training dataset
-MAE_train <- MAE(train_df_reg$price, p.rpart_train)
-SSE_train <- SSE(train_df_reg$price, p.rpart_train)
+MAE_train <- mae(train_df_reg$price, p.rpart_train)
+SSE_train <- sum((train_df_reg$price - p.rpart_train)^2)
 R_squared_train <- R2(train_df_reg$price, p.rpart_train)
-RMSE_train <- RMSE(train_df_reg$price, p.rpart_train)
+RMSE_train <- rmse(train_df_reg$price, p.rpart_train)
 
 # Calculate metrics for testing dataset
-MAE_test <- MAE(test_df_reg$price, p.rpart_test)
-SSE_test <- SSE(test_df_reg$price, p.rpart_test)
+MAE_test <- mae(test_df_reg$price, p.rpart_test)
+SSE_test <- sum((test_df_reg$price - p.rpart_test)^2)
 R_squared_test <- R2(test_df_reg$price, p.rpart_test)
-RMSE_test <- RMSE(test_df_reg$price, p.rpart_test)
+RMSE_test <- rmse(test_df_reg$price, p.rpart_test)
 
 # Append the results to df_results
 df_results <- rbind(df_results, data.frame(
-  Model = "Regression Tree",
+  Model = "Regression Tree with Tuning",
   SSE_train = SSE_train,
   SSE_test = SSE_test,
   R_squared_train = R_squared_train,
@@ -1687,10 +1692,137 @@ df_results <- rbind(df_results, data.frame(
   stringsAsFactors = FALSE
 ))
 
+# View Model Results
 view_model_results(df_results)
 ```
 
 ### Logistic Regression
+
+```{r}
+# # Transform zipcode predictors
+# indx.zipcode <- grepl('zipcode', colnames(train_df_non_linear_outliers))
+# colname.zipcode <- colnames(train_df_non_linear_outliers)[indx.zipcode]
+# train_df_logis <- train_df_non_linear_outliers
+# test_df_logis <- test_df_non_linear
+#
+# # Function to calculate mean price for a given zipcode
+# calc.mean.price <- function(col, df) {
+#   df.select <- df[df[,col] == 1,]
+#   mean.price <- mean(df.select$price)
+#   return (mean.price)
+# }
+#
+# # Initialize zipcode.meanprice column
+# train_df_logis$zipcode.meanprice <- 0.0
+# test_df_logis$zipcode.meanprice <- 0.0
+#
+# # Calculate zipcode.meanprice for each zipcode
+# for (z in colname.zipcode) {
+#   print (z)
+#   train_df_logis[train_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, train_df_logis)
+#   test_df_logis[test_df_logis[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z, test_df_logis)
+# }
+#
+# # Retain all features except 'lat', 'long', and 'zipcode'
+# train_df_logis <- train_df_logis[, !indx.zipcode]
+# train_df_logis <- train_df_logis[, !names(train_df_logis) %in% c("lat", "long")]
+# test_df_logis <- test_df_logis[, !indx.zipcode]
+# test_df_logis <- test_df_logis[, !names(test_df_logis) %in% c("lat", "long")]
+#
+# # Create categorical response variable based on median price
+# price_med <- median(train_df_logis$price)
+# train_df_logis$price_cat <- ifelse(train_df_logis$price < price_med, 0, 1)
+# train_df_logis$price_cat <- as.factor(train_df_logis$price_cat)
+#
+# price_med_test <- median(test_df_logis$price)
+# test_df_logis$price_cat <- ifelse(test_df_logis$price < price_med_test, 0, 1)
+# test_df_logis$price_cat <- as.factor(test_df_logis$price_cat)
+#
+# # logistic regression
+# lmod <- glm(price_cat ~ . -price, family=binomial, train_df_logis)
+# summary(lmod)
+# # beta <- coef(lmod)
+# # exp(beta)
+#
+# lmodr <- step(lmod, trace=0)
+# summary(lmodr)
+# length(summary(lmodr)$coefficients[,4])
+#
+# # drop1
+# drop1(lmodr,test="Chi")
+# length(summary(lmodr)$coefficients[,4])
+# #dropping view_1 first (highest pvalue, 0.1255369 in Chi test)
+# lmodr1<-update(lmodr, as.formula(paste(".~.-", "view_1")) )
+# summary(lmodr1)
+# length(summary(lmodr1)$coefficients[,4])
+# drop1(lmodr1,test="Chi")
+# #dropping view_2 next (highest pvalue 0.2810319 in Chi test)
+# lmodr2<-update(lmodr1, as.formula(paste(".~.-", "view_2")) )
+# summary(lmodr2)
+# length(summary(lmodr2)$coefficients[,4])
+# drop1(lmodr2,test="Chi")
+# # now all variables are significant Chi test.
+#
+#
+# #dropping view_1 next (highest pvalue, 0.983187 in summary)
+# lmodr3<-update(lmodr2, as.formula(paste(".~.-", "grade_4")) )
+# summary(lmodr3)
+# length(summary(lmodr3)$coefficients[,4]) # now All variables are significant.
+# #dropping grade_11 next (highest pvalue, 0.930191 in summary)
+# lmodr4<-update(lmodr3, as.formula(paste(".~.-", "grade_11")) )
+# summary(lmodr4)
+# length(summary(lmodr4)$coefficients[,4]) # now All variables are significant.
+# #dropping season next (highest pvalue, Fall 0.853800 in summary)
+# lmodr5<-update(lmodr4, as.formula(paste(".~.-", "season")) )
+# summary(lmodr5)
+# length(summary(lmodr5)$coefficients[,4]) # now All variables are significant.
+#
+# lmodr.final <- lmodr5
+#
+# true_labels <- train_df_logis$price_cat
+# exp<-cbind(true_labels,lmodr.final$fitted.values)
+# exp[1:10,]
+#
+# #using 0.45 as a cutoff to predict the class. It has the highest F1
+# predicted_probabilities <- predict(lmodr.final, train_df_logis, type="response")
+# predictions <- ifelse(predicted_probabilities > 0.45, 1, 0)
+# # Create confusion matrix
+# confusion_matrix <- caret::confusionMatrix(as.factor(predictions),
+#                                     as.factor(true_labels),
+#                                     mode="prec_recall", positive = "1")
+#
+# confusion_matrix
+#
+# # # psuedo r squared
+# # y.train <- as.numeric(train_df_logis$price_cat)
+# # yhat.train <- as.numeric(predict(lmodr3, train_df_logis, type="response"))
+# # sst.train <- sum((y.train - mean(y.train))^2)
+# # sse.train <- sum((y.train - yhat.train)^2)
+# # rsq.train <- 1 - sse.train / sst.train
+# # rsq.train
+#
+# # test data
+# true_labels.test <- test_df_logis$price_cat
+# predicted_probabilities.test <- predict(lmodr.final, test_df_logis, type="response")
+# predictions.test <- ifelse(predicted_probabilities.test > 0.45, 1, 0)
+# # Create confusion matrix
+# confusion_matrix.test <- caret::confusionMatrix(as.factor(predictions.test),
+#                                     as.factor(true_labels.test),
+#                                     mode="prec_recall", positive = "1")
+#
+# confusion_matrix.test
+#
+# confusion_matrix.output <- as.data.frame(rbind(c("train",round(confusion_matrix$byClass[[1]],3),
+#                                     round(confusion_matrix$byClass[[2]],3),
+#                                            round(confusion_matrix$byClass[[5]],3),
+#                                            round(confusion_matrix$byClass[[7]],3)),
+#                                          c("test",round(confusion_matrix.test$byClass[[1]],3),
+#                                            round(confusion_matrix.test$byClass[[2]],3),
+#                                            round(confusion_matrix.test$byClass[[5]],3),
+#                                            round(confusion_matrix.test$byClass[[7]],3))) )
+# colnames(confusion_matrix.output) <- c("data","Sensitivity","Specificity","Precision","F1")
+# confusion_matrix.output
+```
 
 ```{r logistic_regression}
 # update_model_parameters <- TRUE
@@ -1840,7 +1972,7 @@ view_model_results(df_results)
 # df_results_categorical <- cbind(df_results_categorical, coefficients_df)
 #
 # # Print the results dataframe
-# view_model_results(df_results_categorical)
+# view(df_results_categorical)
 ```
 
 
