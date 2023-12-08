@@ -10,13 +10,13 @@ output:
       after_body: extra_html_files/copyright.html
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
 # List of required packages, including 'here'
 required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies",
   "faraway", "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr"
+  "RColorBrewer", "scales", "purrr", "rpart", "gmodels","neuralnet","C50"
 )
 
 # Establish CRAN for package installs
@@ -37,7 +37,7 @@ rmd_dir <- dirname(here())
 
 # Navigate up one directory and then to the CSV data file
 # csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
-csv_file <- file.path("/cloud/project", "KC_House_Sales.csv")
+csv_file <- file.path("/cloud/project/Class Group Project", "KC_House_Sales.csv")
 
 # Read the CSV file into a data frame
 df <- read.csv(csv_file)
@@ -223,7 +223,7 @@ test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = 
 
 
 ### Logistic regression
-```{r logistic}
+```{r logistic,  warning = FALSE, message=FALSE}
 # logistic regression with train dataset
 
 
@@ -387,8 +387,8 @@ calc.mean.price <- function(col) {
 
 zipcode_train$zipcode.meanprice <- 0.0
 for (z in colname.zipcode) {
-  print (z)
-  print (calc.mean.price(z) )
+  # print (z)
+  # print (calc.mean.price(z) )
   # zipcode_train <- calc.mean.price(z)
   zipcode_train[zipcode_train[,z] == 1,]$zipcode.meanprice <- calc.mean.price(z)
 }
@@ -406,7 +406,7 @@ plot(zipcode_train$price, zipcode_train$zipcode.meanprice)
 train_df_reg <- train_df_logis[ , -which(names(train_df_logis) %in% c("price_cat"))]
 test_df_reg <- test_df_logis[ , -which(names(test_df_logis) %in% c("price_cat"))]
 
-library(rpart)
+# library(rpart)
 m.rpart <- rpart(price ~ ., data = train_df_reg)
 m.rpart
 
@@ -457,7 +457,7 @@ table(test_df_dec$price_low)
 train_df_dec <- train_df_dec[ , -which(names(train_df_dec) %in% c("price", "price_cat"))]
 test_df_dec <- test_df_dec[ , -which(names(test_df_dec) %in% c("price", "price_cat"))]
 
-library(C50)
+# library(C50)
 price_model <- C5.0(train_df_dec[,-42], train_df_dec$price_low)
 #The price_model object now contains a C5.0 decision tree.
 price_model
@@ -467,7 +467,7 @@ plot(price_model)
 
 #evaluating model performance
 price_pred <- predict(price_model, test_df_dec)
-library(gmodels)
+# library(gmodels)
 CrossTable(test_df_dec$price_low, price_pred,
            prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
            dnn = c('actual default', 'predicted default'))
@@ -491,7 +491,7 @@ test_norm$waterfront <- as.numeric(test_norm$waterfront)
 test_norm <- as.data.frame(lapply(test_norm, normalize))
 
 # NN model
-library(neuralnet)
+# library(neuralnet)
 nn_model <- neuralnet(price ~ .,data = train_norm)
 plot(nn_model)
 
