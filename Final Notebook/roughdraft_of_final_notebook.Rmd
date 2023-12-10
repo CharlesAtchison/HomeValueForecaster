@@ -1119,57 +1119,12 @@ linear_model_initial <- lm(price ~ ., data = train_df_linear)
 # Evaluate OLS_linear
 df_results <- evaluate_model("OLS_linear", linear_model_initial, train_df_linear, test_df_linear, target_var = 'price', NULL)
 
-# Conditional logic based on the update_model_parameters flag
-if (update_model_parameters) {
-  # Run each of the stepwise regression models and update the JSON file
-  # Step model both
-  model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
-  features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
-  update_model_json("OLS_Step_Both", features_both, json_filepath)
-
-  # Step model Backward
-  model_backward <- ols_step_backward_p(linear_model_initial, pent=0.35, prem = 0.05)
-  features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
-  update_model_json("OLS_Step_Backward", features_backward, json_filepath)
-
-  # Step model foward
-  model_forward <- ols_step_forward_p(linear_model_initial, pent=0.35, penter = 0.05)
-  features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
-  update_model_json("OLS_Step_Forward", features_forward, json_filepath)
-} else {
-  # Load model parameters from JSON and build models
-  model_params <- fromJSON(json_filepath)
-
-  # Create models based on the loaded features
-  if (all(c("OLS_Step_Both", "OLS_Step_Backward", "OLS_Step_Forward") %in% names(model_params))) {
-    # For each model type, create the model using the features stored in the JSON
-    model_both <- create_model(train_df_linear, 'price', model_params$OLS_Step_Both)
-    model_backward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Backward)
-    model_forward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Forward)
-  } else {
-    stop("Required model parameters are missing in the JSON file.")
-  }
-}
-
 # Show inital linear model results
 summary(linear_model_initial)
 
 view_model_results(df_results)
 ```
 
-```{r add_features}
-
-# Evaluate OLS_Step_Both
-df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
-
-# Evaluate OLS_Step_Forward
-df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
-
-# Evaluate OLS_Step_Backward
-df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
-
-view_model_results(df_results)
-```
 
 ### Detailed Initial Model Insights
 
@@ -1286,7 +1241,7 @@ As we implement these adjustments, we will:
 
 Through these methodical steps, we aim to enhance the reliability and validity of our model's predictive power, ensuring that it not only meets statistical assumptions but also aligns with empirical data.
 
-### Diagnostics for Homoscedasticity and Normality of Errors
+### Diagnostics for Homoscedasticity, Normality of Errors and Constancy of Error Variances
 
 #### Breusch-Pagan Test
 
@@ -1314,16 +1269,6 @@ print(ad_test_results)
 
 If the p-value from the Anderson-Darling test is less than our alpha level of 0.05, we will reject the null hypothesis that the errors are normally distributed.
 
-#### Breusch-Pagan Test Results
-
-The results from the Breusch-Pagan test are as follows:
-
-- **Test Statistic (BP)**: `r bp_test_results$statistic`
-- **Degrees of Freedom (df)**: `r bp_test_results$parameter`
-- **P-value**: `r bp_test_results$p.value`
-
-Given that our p-value is `r ifelse(bp_test_results$p.value < 0.05, "less", "greater")` than 0.05, we `r ifelse(bp_test_results$p.value < 0.05, "reject", "fail to reject")` the null hypothesis, indicating that `r ifelse(bp_test_results$p.value < 0.05, "heteroscedasticity is likely present", "the assumption of homoscedasticity holds")` in our residuals.
-
 #### Anderson-Darling Test Results
 
 The results from the Anderson-Darling test are as follows:
@@ -1332,6 +1277,90 @@ The results from the Anderson-Darling test are as follows:
 - **P-value**: `r ad_test_results$p.value`
 
 Since the p-value is `r ifelse(ad_test_results$p.value < 0.05, "less", "greater")` than 0.05, we `r ifelse(ad_test_results$p.value < 0.05, "reject", "fail to reject")` the null hypothesis, suggesting that `r ifelse(ad_test_results$p.value < 0.05, "errors are not normally distributed", "errors are normally distributed")`.
+
+#### Examining the Non-Linearity of the Model
+
+```{r boxcox, echo = FALSE, include = TRUE}
+par(mfrow=c(1,1))
+bc <- boxcox(linear_model_initial, lambda=seq(-1,1,by=.1))
+optimal_lambda <- bc$x[which.max(bc$y)]
+```
+
+As we can observe from the box cox plot above, the lambda that give the highest log-likehood is `r optimal_lambda`. We transform Y using the log transformation as shown below. We will examine these regression assumptions below.
+
+### Transformation Model
+
+```{r transformation_model}
+# Apply the Box-Cox transformation to the training and test data
+if (optimal_lambda != 0) {
+  transformed_price <- (train_df_linear$price^optimal_lambda - 1) / optimal_lambda
+  transformed_test_price <- (test_df_linear$price^optimal_lambda - 1) / optimal_lambda
+} else {
+  transformed_price <- log(train_df_linear$price)
+  transformed_test_price <- log(test_df_linear$price)
+}
+
+# Create a linear regression model using the transformed price
+transformed_model <- lm(transformed_price ~ ., data = train_df_linear)
+
+# Predict prices for training and test data using the transformed model
+predicted_train_transformed <- predict(transformed_model, newdata = train_df_linear)
+predicted_test_transformed <- predict(transformed_model, newdata = test_df_linear)
+
+# Back-transform the predicted prices to original scale
+if (optimal_lambda != 0) {
+  predicted_train <- (predicted_train_transformed * optimal_lambda + 1)^(1 / optimal_lambda)
+  predicted_test <- (predicted_test_transformed * optimal_lambda + 1)^(1 / optimal_lambda)
+} else {
+  predicted_train <- exp(predicted_train_transformed)
+  predicted_test <- exp(predicted_test_transformed)
+}
+
+# Calculate SSE for the training and test data
+sse_train <- sum((train_df_linear$price - predicted_train)^2)
+sse_test <- sum((test_df_linear$price - predicted_test)^2)
+
+# Calculate SST for test data
+sst_test <- sum((test_df_linear$price - mean(test_df_linear$price))^2)
+
+# Calculate R-squared for training and test data
+r_squared_train <- summary(transformed_model)$r.squared
+r_squared_test <- 1 - (sse_test / sst_test)
+
+# Calculate RMSE for training and test data
+rmse_train <- sqrt(sse_train / nrow(train_df_linear))
+rmse_test <- sqrt(sse_test / nrow(test_df_linear))
+
+# Calculate MAE for training and test data
+mae_train <- mean(abs(train_df_linear$price - predicted_train))
+mae_test <- mean(abs(test_df_linear$price - predicted_test))
+
+# Create a dataframe to store the results
+df_results <- rbind(df_results, data.frame(
+  Model = "Transformed Model",
+  SSE_train = sse_train,
+  SSE_test = sse_test,
+  R_squared_train = r_squared_train,
+  R_squared_test = r_squared_test,
+  RMSE_train = rmse_train,
+  RMSE_test = rmse_test,
+  MAE_train = mae_train,
+  MAE_test = mae_test
+))
+
+# View the updated model results
+view_model_results(df_results)
+```
+
+```{r transformed_model_plots, echo = FALSE, include = TRUE}
+coeff_trans <- transformed_model$coefficients
+summary(transformed_model)
+par(mfrow=c(1,1))
+plot(transformed_model)
+par(mfrow=c(1,1))
+boxplot(transformed_model$residuals)
+```
+
 
 ### Outlier Detection
 
@@ -1403,6 +1432,116 @@ train_df_linear_outliers <- train_df_linear[-influential_obs, ]
 train_df_non_linear_outliers <- train_df_non_linear[-influential_obs, ]
 ```
 
+### Examining Multicollinearity
+
+```{r vif}
+vif_values <- vif(linear_model_initial)
+
+# Create copies of the training and test datasets
+train_df_linear_copy <- train_df_linear
+test_df_linear_copy <- test_df_linear
+
+# Set the VIF threshold (e.g., 10)
+vif_threshold <- 10
+
+# Function to remove high VIF columns from a dataset
+remove_high_vif_columns <- function(df, threshold) {
+  linear_model <- lm(price ~ ., data = df)
+  vif_values <- vif(linear_model)
+  high_vif_columns <- names(vif_values[vif_values > threshold])
+  df <- df[, !names(df) %in% high_vif_columns]
+  return(df)
+}
+
+# Remove high VIF columns from the copied training and test datasets
+train_df_linear_copy <- remove_high_vif_columns(train_df_linear_copy, vif_threshold)
+test_df_linear_copy <- remove_high_vif_columns(test_df_linear_copy, vif_threshold)
+
+# Fit a linear regression model to the updated training data
+linear_model_initial_vif <- lm(price ~ ., data = train_df_linear_copy)
+
+# Evaluate the updated linear model on the copied test data
+df_results <- evaluate_model("OLS_linear_VIF_10", linear_model_initial_vif, train_df_linear_copy, test_df_linear_copy, target_var = 'price', df_results)
+
+# Show updated linear model results
+summary(linear_model_initial_vif)
+view_model_results(df_results)
+```
+
+#### Columns with High VIF Values
+
+| Column Name         | VIF Value |
+|---------------------|-----------|
+| day_of_year         | 18.74     |
+| grade_5             | 20.76     |
+| grade_6             | 166.84    |
+| grade_7             | 454.88    |
+| grade_8             | 371.93    |
+| grade_9             | 195.81    |
+| grade_10            | 88.27     |
+| grade_11            | 33.39     |
+| season_Summer       | 11.73     |
+| season_Fall         | 21.83     |
+| distance_to_convergence | 20.05 |
+
+In our linear regression analysis, we have identified several columns with high Variance Inflation Factor (VIF) values exceeding the threshold of 10. VIF is a measure that quantifies the degree of multicollinearity between predictor variables in a regression model. High VIF values indicate that certain predictor variables are highly correlated with others, leading to multicollinearity issues. To build a more reliable and interpretable linear regression model, we are dropping these columns with high VIF values. By doing so, we aim to reduce the multicollinearity that can lead to unstable coefficient estimates and make it challenging to interpret the individual impact of each predictor variable on the target variable (price).
+
+Despite the removal of these high VIF columns, it's worth noting that the model's performance has decreased slightly. The adjusted model, referred to as "OLS_linear_VIF_10," now exhibits a higher Sum of Squared Errors (SSE) for both the training and test datasets, indicating a decrease in predictive accuracy compared to the initial model. The R-squared values have also decreased slightly for both the training and test datasets. While the removal of highly correlated predictors was intended to improve model performance, it appears that in this case, it has led to a reduction in predictive accuracy. This outcome highlights the complexity of model building and the need for careful consideration of which variables to retain or remove to achieve the best model performance. Despite the decrease in performance, the adjusted model may still offer advantages in terms of interpretability and reduced multicollinearity.
+
+### Weighted Least Squares
+
+## IV. Model Performance Testing
+Use the test data set to assess the model performances. Here, build the best multiple linear models by using the stepwise both ways selection method. Compare the performance of the best two linear models. Make sure that model assumption(s) are checked for the final linear model. Apply remedy measures (transformation, etc.) that helps satisfy the assumptions. In particular, you must deeply investigate unequal variances and multicollinearity. If necessary, apply remedial methods (WLS, Ridge, Elastic Net, Lasso, etc.).
+
+### OLS Stepwise Model
+
+```{r step_models}
+# Conditional logic based on the update_model_parameters flag
+if (update_model_parameters) {
+  # Run each of the stepwise regression models and update the JSON file
+  # Step model both
+  model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
+  update_model_json("OLS_Step_Both", features_both, json_filepath)
+
+  # Step model Backward
+  model_backward <- ols_step_backward_p(linear_model_initial, pent=0.35, prem = 0.05)
+  features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
+  update_model_json("OLS_Step_Backward", features_backward, json_filepath)
+
+  # Step model foward
+  model_forward <- ols_step_forward_p(linear_model_initial, pent=0.35, penter = 0.05)
+  features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
+  update_model_json("OLS_Step_Forward", features_forward, json_filepath)
+} else {
+  # Load model parameters from JSON and build models
+  model_params <- fromJSON(json_filepath)
+
+  # Create models based on the loaded features
+  if (all(c("OLS_Step_Both", "OLS_Step_Backward", "OLS_Step_Forward") %in% names(model_params))) {
+    # For each model type, create the model using the features stored in the JSON
+    model_both <- create_model(train_df_linear, 'price', model_params$OLS_Step_Both)
+    model_backward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Backward)
+    model_forward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Forward)
+  } else {
+    stop("Required model parameters are missing in the JSON file.")
+  }
+}
+
+# Evaluate OLS_Step_Both
+df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate OLS_Step_Forward
+df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate OLS_Step_Backward
+df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+view_model_results(df_results)
+```
+
+### OLS Stepwise Model Outliers Removed
+
 ```{r refit_all_OLS_models, echo = FALSE}
 # Fit a linear regression model to the training data
 linear_model_initial_outliers <- lm(price ~ ., data = train_df_linear_outliers)
@@ -1461,11 +1600,13 @@ summary(linear_model_initial_outliers)
 view_model_results(df_results)
 ```
 
+## V. Challenger Models
+Build an alternative model based on one of the following approaches to predict price: regression tree, NN, or SVM. Explore using a logistic regression. Check the applicable model assumptions. Apply in-sample and out-of-sample testing, backtesting and review the comparative goodness of fit of the candidate models. Describe step by step your procedure to get to the best model and why you believe it is fit for purpose.
+
+
 ### Neural Network Model
 
 ```{r keras_NN}
-# Set to TRUE to run the actual NN
-update_model_parameters <- FALSE
 
 # Define a normalization function
 normalize_data <- function(x) {
@@ -1509,7 +1650,8 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   lowest_val_mae <- Inf
   best_batch_size <- NULL  # Store the best batch size
   best_epochs <- NULL  # Store the best number of epochs
-  batch_sizes <- c(32, 64, 128, 256, 512)  # Different batch sizes to experiment with
+  # Smaller batch sizes drastically increase computation required
+  batch_sizes <- c(8, 16, 32, 64)  # Different batch sizes to experiment with
   epochs_list <- c(50, 100, 150, 200, 250)  # Different numbers of epochs to experiment with
 
   for (batch_size in batch_sizes) {
@@ -1517,7 +1659,7 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
       # Define a complex Keras model with multiple layers
       model <- keras_model_sequential() %>%
         layer_dense(units = 256, activation = 'relu', input_shape = ncol(train_data) - 1) %>%
-        layer_dropout(rate = 0.3) %>%
+        layer_dropout(rate = 0.3) %>% # Accounts for multicollinearity and prevents overfit
         layer_dense(units = 128, activation = 'relu') %>%
         layer_dropout(rate = 0.3) %>%
         layer_dense(units = 64, activation = 'relu') %>%
@@ -1975,8 +2117,6 @@ view_model_results(df_results)
 # view(df_results_categorical)
 ```
 
-
-
 ### Decision Tree
 
 ```{r decision_tree}
@@ -2025,4 +2165,45 @@ view_model_results(df_results)
 # price_boost10 <- C5.0(train_df_dec, train_df_dec$price_low, trials = 10)
 # summary(price_boost10)
 ```
+
+## VI. Model Limitation and Assumptions
+Based on the performances on both train and test data sets, determine your primary (champion) model and the other model which would be your benchmark model. Validate your models using the test sample. Do the residuals look normal? Does it matter given your technique? How is the prediction performance using Pseudo R^2, SSE, RMSE?  Benchmark the model against alternatives. How good is the relative fit? Are there any serious violations of the model assumptions? Has the model had issues or limitations that the user must know? (Which assumptions are needed to support the Champion model?)
+
+
+## VII. Ongoing Model Monitoring Plan
+How would you picture the model needing to be monitored, which quantitative thresholds and triggers would you set to decide when the model needs to be replaced? What are the assumptions that the model must comply with for its continuous use?
+
+## VIII. Conclusion
+Summarize your results here. What is the best model for the data and why?
+
+
+## Bibliography
+
+https://datatofish.com/remove-column-dataframe-r/
+
+https://www.statology.org/r-convert-date-to-numeric/
+
+https://www.marsja.se/create-dummy-variables-in-r/
+
+https://www.geeksforgeeks.org/how-to-find-and-count-missing-values-in-r-dataframe/
+
+https://intro2r.com/export_plots.html
+
+https://stackoverflow.com/questions/25166624/insert-picture-table-in-r-markdown
+
+https://www.tutorialspoint.com/how-to-deal-with-error-error-in-shapiro-test-sample-size-must-be-between-3-and-5000-in-r#:~:text=Error%20in%20shapiro.-,test(%E2%80%A6)%20%3A%20sample%20size%20must%20be%20between,3%20and%205000%E2%80%9D%20in%20R%3F&text=The%20shapiro.,called%20Anderson%20Darling%20normality%20test.
+
+
+Book and decks of the Data modelling class
+
+Please include all references, articles and papers in this section.
+
+
+## Appendix
+
+Please add any additional supporting graphs, plots and data analysis.
+
+
+
+
 
