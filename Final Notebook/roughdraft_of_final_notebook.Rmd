@@ -1490,6 +1490,81 @@ Despite the removal of these high VIF columns, it's worth noting that the model'
 
 ### Weighted Least Squares
 
+```{r weighted_least_squares}
+# Extract absolute residuals from linear_modle_inital as VIF removal reduced our performance
+abs_residuals <- abs(linear_model_initial$residuals)
+
+# Fit a linear regression model to the absolute residuals
+abs_residuals_model <- lm(abs_residuals ~ ., data = train_df_linear[, -1])
+
+# Calculate fitted values from the absolute residuals model
+fitted_values <- abs_residuals_model$fitted.values
+
+# Calculate weights (w1) based on the squared fitted values
+weights <- 1 / (fitted_values^2)
+
+# Fit a weighted linear regression model to the log-transformed price with weights
+weighted_regression_model <- lm(log(price) ~ ., weights = weights, data = train_df_linear)
+
+# Display the summary of the weighted model
+summary(weighted_regression_model)
+
+# Create diagnostic plots
+par(mfrow=c(1,2))
+plot(weighted_regression_model)
+par(mfrow=c(1,1))
+boxplot(weighted_regression_model$residuals)
+
+# Perform Breusch-Pagan test for heteroscedasticity
+bptest(weighted_regression_model, studentize = TRUE)
+
+# Calculate predictions for training and test data using the weighted model
+predicted_train_transformed_wls <- predict(weighted_regression_model, newdata = train_df_linear)
+predicted_test_transformed_wls <- predict(weighted_regression_model, newdata = test_df_linear)
+
+# Back-transform the predicted prices to the original scale
+predicted_train_wls <- exp(predicted_train_transformed_wls)
+predicted_test_wls <- exp(predicted_test_transformed_wls)  # Back-transform for test data
+
+# Calculate SSE for the training data
+sse_train_wls <- sum((train_df_linear$price - predicted_train_wls)^2)
+
+# Calculate SSE for the test data
+sse_test_wls <- sum((test_df_linear$price - predicted_test_wls)^2)
+
+# Calculate R-squared for training data
+r_squared_train_wls <- 1 - sse_train_wls / sum((train_df_linear$price - mean(train_df_linear$price))^2)
+
+# Calculate R-squared for test data
+r_squared_test_wls <- 1 - sse_test_wls / sum((test_df_linear$price - mean(test_df_linear$price))^2)
+
+# Create a dataframe to store the results
+df_results <- rbind(df_results, data.frame(
+  Model = "WLS_linear",
+  SSE_train = sse_train_wls,
+  SSE_test = sse_test_wls,
+  R_squared_train = r_squared_train_wls,
+  R_squared_test = r_squared_test_wls,
+  RMSE_train = sqrt(sse_train_wls / nrow(train_df_linear)),
+  RMSE_test = sqrt(sse_test_wls / nrow(test_df_linear)),
+  MAE_train = mean(abs(train_df_linear$price - predicted_train_wls)),
+  MAE_test = mean(abs(test_df_linear$price - predicted_test_wls))
+))
+
+# View the updated model results
+view_model_results(df_results)
+```
+
+#### Insights on WLS Linear Model
+
+- The WLS Linear Model demonstrates a moderate \( R^2 \) for the training data (0.44367) and a higher \( R^2 \) for the test data (0.70391), suggesting better generalization than the Transformed Model.
+- The RMSE and MAE values are higher compared to the basic OLS model, which could indicate a trade-off for achieving more robustness against heteroscedasticity.
+- The significant difference in SSE between training and test datasets might suggest the need for further model tuning or exploration of alternative modeling approaches.
+
+#### Conclusion
+
+The WLS Linear Model provides a different perspective in handling data with heteroscedasticity. While it doesn't outperform the basic OLS model in terms of error metrics, it offers a more stable and generalizable model for the test dataset. This analysis underscores the importance of considering various models and transformations based on the specific characteristics of the dataset and the problem at hand.
+
 ## IV. Model Performance Testing
 Use the test data set to assess the model performances. Here, build the best multiple linear models by using the stepwise both ways selection method. Compare the performance of the best two linear models. Make sure that model assumption(s) are checked for the final linear model. Apply remedy measures (transformation, etc.) that helps satisfy the assumptions. In particular, you must deeply investigate unequal variances and multicollinearity. If necessary, apply remedial methods (WLS, Ridge, Elastic Net, Lasso, etc.).
 
