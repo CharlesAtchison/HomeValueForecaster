@@ -164,7 +164,7 @@ The dataset's preparation involved meticulous cleaning and transformation proces
 
 ```{r data_transformation}
 # Data Preprocessing and Transformation
-set.seed(123)  # Setting a seed for reproducibility
+set.seed(1023)  # Setting a seed for reproducibility
 split_index <- sample(1:nrow(df), size = 0.7 * nrow(df))
 train_df <- df[split_index, ]
 test_df <- df[-split_index, ]
@@ -197,7 +197,11 @@ transform_data <- function(df, convergence_point, linear_model) {
            waterfront = as.factor(waterfront),
            view = as.factor(view),
            condition = as.factor(condition),
-           grade = as.character(grade)) %>%
+           grade = as.numeric(grade),
+           grade = case_when(
+             grade %in% 1:3 ~ "Below_Average",
+             grade %in% 4:10 ~ "Average",
+             grade %in% 11:13 ~ "Above_Average")) %>%
     dummy_cols(select_columns = c('zipcode', 'view', 'condition', 'grade', 'waterfront', 'season'))
   # Remove last dummy variables to avoid multicollinearity
   if (linear_model) {
@@ -242,10 +246,10 @@ update_model_json <- function(model_name, features, filepath) {
 }
 
 # # Save the transformed data as CSV files in the current directory
-# write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
-# write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
-# write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
-# write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
+write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
+write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
+write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
+write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
 ```
 
 #### Training Data Header
@@ -916,10 +920,11 @@ To commence the model development process, we establish an Ordinary Least Square
 
 ```{r initial_model, echo = FALSE, include = FALSE}
 # Drop columns created for visualizations in prior steps, and columns that have almost perfect correlation and multicollinearity.
-train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3')]
-train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3')]
-test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_1")]
-test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_1")]
+train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
+train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
+test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
+test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
+
 
 #' Add Model Performance to Dataframe
 #'
@@ -1056,7 +1061,7 @@ extract_and_display_features <- function(model, full_df, target_var) {
   # Identify features not used in the model
   unused_features <- setdiff(all_features, features_used)
 
-  # USE THIS FOR DEBUGGING ISSUES
+  # # USE THIS FOR DEBUGGING ISSUES
   # # Display the unused features
   # if (length(unused_features) > 0) {
   #   cat("Features not used in the model:\n", paste(unused_features, collapse = ", "), "\n")
@@ -1606,11 +1611,12 @@ if (update_model_parameters) {
 # Evaluate OLS_Step_Both
 df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
 
+# Evaluate OLS_Step_Backward
+df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
 # Evaluate OLS_Step_Forward
 df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
 
-# Evaluate OLS_Step_Backward
-df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
 
 view_model_results(df_results)
 ```
@@ -1682,10 +1688,9 @@ Build an alternative model based on one of the following approaches to predict p
 ### Neural Network Model
 
 ```{r keras_NN}
-
 # Define a normalization function
 normalize_data <- function(x) {
-  (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  return((x - min(x)) / (max(x) - min(x)))
 }
 
 # Function to prepare the dataset
@@ -1697,8 +1702,8 @@ prepare_dataset <- function(df) {
 }
 
 # Function to rescale normalized data back to original scale
-rescale_to_original <- function(predictions, mean, sd) {
-  return (predictions * sd + mean)
+rescale_to_original <- function(x, min_val, max_val) {
+  return((x * (max_val - min_val)) + min_val)
 }
 
 # Define model builder
@@ -1726,7 +1731,7 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   best_batch_size <- NULL  # Store the best batch size
   best_epochs <- NULL  # Store the best number of epochs
   # Smaller batch sizes drastically increase computation required
-  batch_sizes <- c(8, 16, 32, 64)  # Different batch sizes to experiment with
+  batch_sizes <- c(50, 60, 70, 80, 90, 100, 110, 120, 130)  # Different batch sizes to experiment with
   epochs_list <- c(50, 100, 150, 200, 250)  # Different numbers of epochs to experiment with
 
   for (batch_size in batch_sizes) {
@@ -1781,8 +1786,8 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   test_predictions <- predict(best_model, x = as.matrix(test_data[, -which(names(test_data) == "price")]))
 
   # Rescale predictions back to original scale
-  rescaled_train_predictions <- rescale_to_original(train_predictions, mean(original_train_price), sd(original_train_price))
-  rescaled_test_predictions <- rescale_to_original(test_predictions, mean(original_test_price), sd(original_test_price))
+  rescaled_train_predictions <- rescale_to_original(train_predictions, min(original_train_price), max(original_train_price))
+  rescaled_test_predictions <- rescale_to_original(test_predictions, min(original_test_price), max(original_test_price))
 
   # Calculate various performance metrics
   metrics <- list(
@@ -1803,15 +1808,23 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   return(metrics)
 }
 
+
 # Load and prepare data
-train_df_logis <- train_df_non_linear_outliers
+train_df_logis <- train_df_non_linear
 test_df_logis <- test_df_non_linear
 
-train_norm <- prepare_dataset(train_df_logis)
-test_norm <- prepare_dataset(test_df_logis)
+# Combine train and test data for normalization
+combined_df <- rbind(train_df_logis, test_df_logis)
+
+# Normalize the combined data
+combined_norm <- prepare_dataset(combined_df)
+
+# Split the normalized data back into train and test sets
+train_norm <- combined_norm[1:nrow(train_df_logis), ]
+test_norm <- combined_norm[(nrow(train_df_logis) + 1):nrow(combined_norm), ]
 
 # Original non-normalized price data
-original_train_price <- train_df_non_linear_outliers$price
+original_train_price <- train_df_non_linear$price
 original_test_price <- test_df_non_linear$price
 
 # Train and evaluate the model
