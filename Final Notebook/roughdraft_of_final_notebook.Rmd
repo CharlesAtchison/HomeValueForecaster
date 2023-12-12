@@ -4,6 +4,7 @@ author: "Charles Atchison"
 date: "`r Sys.Date()`"
 output:
   html_document:
+    fig_caption: true
     css: "extra_html_files/style.css"
     includes:
       before_body: extra_html_files/header.html
@@ -13,10 +14,10 @@ output:
 ```{r setup, include=FALSE}
 # List of required packages, including 'here'
 required_packages <- c(
-  "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies",
-  "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics",
+  "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
+  "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics", "kableExtra",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart"
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom"
 )
 
 # Establish CRAN for package installs
@@ -55,6 +56,15 @@ update_model_json <- function(model_name, features, filepath) {
   model_params[[model_name]] <- features
   # Write the updated parameters back to the JSON file
   write_json(model_params, filepath)
+}
+
+# Initialize the figure counter
+fig_counter <- 0
+
+# Custom function to generate figure captions with automatic numbering
+generate_figure_caption <- function(caption) {
+  fig_counter <<- fig_counter + 1
+  paste0("Figure 1.", fig_counter, " ", caption)
 }
 ```
 
@@ -106,29 +116,52 @@ This introduction sets the stage for a comprehensive analysis, highlighting the 
 ### Dataset Overview and Detailed Description
 The King County house sales dataset is a comprehensive collection of 21,613 observations, each representing a unique house sale. The dataset encompasses a variety of features that describe different aspects of the houses sold. Below is a detailed description of each variable in the dataset:
 
-| Variable       | Description                                                                                          |
-|----------------|------------------------------------------------------------------------------------------------------|
-| `id`           | Unique ID for each home sold (not used as a predictor)                                               |
-| `date`         | Date of the home sale                                                                                |
-| `price`        | Price of each home sold                                                                              |
-| `bedrooms`     | Number of bedrooms                                                                                   |
-| `bathrooms`    | Number of bathrooms, ".5" accounts for a bathroom with a toilet but no shower                        |
-| `sqft_living`  | Square footage of the apartment interior living space                                                |
-| `sqft_lot`     | Square footage of the land space                                                                     |
-| `floors`       | Number of floors                                                                                     |
-| `waterfront`   | A dummy variable for whether the apartment was overlooking the waterfront or not                     |
-| `view`         | An index from 0 to 4 of how good the view of the property was                                        |
-| `condition`    | An index from 1 to 5 on the condition of the apartment                                               |
-| `grade`        | An index from 1 to 13 about building construction and design quality                                |
-| `sqft_above`   | The square footage of the interior housing space above ground level                                  |
-| `sqft_basement`| The square footage of the interior housing space below ground level                                  |
-| `yr_built`     | The year the house was initially built                                                               |
-| `yr_renovated` | The year of the house’s last renovation                                                              |
-| `zipcode`      | The zipcode area the house is in                                                                     |
-| `lat`          | Latitude coordinate                                                                                  |
-| `long`         | Longitude coordinate                                                                                 |
-| `sqft_living15`| The square footage of interior housing living space for the nearest 15 neighbors                     |
-| `sqft_lot15`   | The square footage of the land lots of the nearest 15 neighbors                                      |
+```{r data_description, echo = FALSE, include = TRUE}
+# Create a data frame for the table
+data_description <- data.frame(
+  Variable = c(
+    'id', 'date', 'price', 'bedrooms', 'bathrooms', 'sqft_living', 'sqft_lot',
+    'floors', 'waterfront', 'view', 'condition', 'grade', 'sqft_above',
+    'sqft_basement', 'yr_built', 'yr_renovated', 'zipcode', 'lat',
+    'long', 'sqft_living15', 'sqft_lot15'
+  ),
+  Description = c(
+    'Unique ID for each home sold (not used as a predictor)',
+    'Date of the home sale',
+    'Price of each home sold',
+    'Number of bedrooms',
+    'Number of bathrooms, ".5" accounts for a bathroom with a toilet but no shower',
+    'Square footage of the apartment interior living space',
+    'Square footage of the land space',
+    'Number of floors',
+    'A dummy variable for whether the apartment was overlooking the waterfront or not',
+    'An index from 0 to 4 of how good the view of the property was',
+    'An index from 1 to 5 on the condition of the apartment',
+    'An index from 1 to 13 about building construction and design quality',
+    'The square footage of the interior housing space above ground level',
+    'The square footage of the interior housing space below ground level',
+    'The year the house was initially built',
+    'The year of the house’s last renovation',
+    'The zipcode area the house is in',
+    'Latitude coordinate',
+    'Longitude coordinate',
+    'The square footage of interior housing living space for the nearest 15 neighbors',
+    'The square footage of the land lots of the nearest 15 neighbors'
+  )
+)
+
+# Create the table with kable
+data_description_table <- kable(
+  data_description,
+  format = "html",
+  caption = generate_figure_caption(caption = "Data Description")
+) %>%
+  kable_styling(full_width = TRUE) %>%
+  column_spec(1, bold = TRUE)
+
+# Print the table
+data_description_table
+```
 
 ### Data Quality and Transformation
 
@@ -246,10 +279,10 @@ update_model_json <- function(model_name, features, filepath) {
 }
 
 # # Save the transformed data as CSV files in the current directory
-write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
-write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
-write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
-write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
+# write.csv(train_df_linear, "train_df_linear.csv", row.names = FALSE)
+# write.csv(test_df_linear, "test_df_linear.csv", row.names = FALSE)
+# write.csv(train_df_non_linear, "train_df_non_linear.csv", row.names = FALSE)
+# write.csv(test_df_non_linear, "test_df_non_linear.csv", row.names = FALSE)
 ```
 
 #### Training Data Header
@@ -259,7 +292,12 @@ table_height <- "400px"
 
 # Create a scrollable div and place the table inside it
 cat(sprintf('<div style="overflow-y: scroll; max-height: %s;">', table_height))
-kable(head(train_df_linear))
+# Print the table with a caption using the custom function
+kable(
+  head(train_df_linear),
+  caption = generate_figure_caption("Data Header"),
+  format = "html"
+)
 cat('</div>')
 ```
 
@@ -297,14 +335,25 @@ This analysis focuses on continuous variables like `price`, `sqft_living`, `sqft
 
 ```{r price_vs_sqft_living, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Square Footage of Living Space
-plot(train_df_non_linear$sqft_living, train_df_non_linear$price, main = "Price vs. Sqft Living Space", xlab = "Sqft Living Space", ylab = "Price", pch = 20, col = "blue")
+ggplot(data = train_df_non_linear, aes(x = sqft_living, y = price)) +
+  geom_point(pch = 20, col = "blue") +
+  labs(title = "Price vs. Square Footage of Living Space",
+       subtitle = "Seattle Housing Data",
+       x = "Sqft Living Space",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Square Footage of Living Space"))
 ```
 
 In the scatter plot above, we compare the `price` of homes against their `sqft_living` (square footage of interior living space). This visualization allows us to explore the relationship between these two variables.
 
 ```{r distribution_sqft_living, echo = FALSE, include = TRUE}
 # Distribution of Square Footage of Living Space
-hist(train_df_non_linear$sqft_living, main = "Distribution of Sqft Living Space", xlab = "Sqft Living Space", breaks = 50)
+ggplot(data = train_df_non_linear, aes(x = sqft_living)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Living Space",
+       x = "Sqft Living Space",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Living Space"))
 ```
 
 The histogram above displays the distribution of `sqft_living`. It reveals that the variable is right-skewed, with most homes having smaller living spaces and relatively fewer very large living spaces.
@@ -313,14 +362,24 @@ The histogram above displays the distribution of `sqft_living`. It reveals that 
 
 ```{r price_vs_sqft_lot, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Square Footage of Lot
-plot(train_df_non_linear$sqft_lot, train_df_non_linear$price, main = "Price vs. Sqft Lot", xlab = "Sqft Lot", ylab = "Price", pch = 20, col = "green")
+ggplot(data = train_df_non_linear, aes(x = sqft_lot, y = price)) +
+  geom_point(pch = 20, col = "green") +
+  labs(title = "Price vs. Sqft Lot",
+       x = "Sqft Lot",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Lot"))
 ```
 
 The scatter plot above compares `price` against `sqft_lot` (square footage of land space). It helps us understand if there's any relationship between the size of the lot and the sale price.
 
 ```{r distribution_sqft_lot, echo = FALSE, include = TRUE}
 # Distribution of Square Footage of Lot
-hist(train_df_non_linear$sqft_lot, main = "Distribution of Sqft Lot", xlab = "Sqft Lot", breaks = 50)
+ggplot(data = train_df_non_linear, aes(x = sqft_lot)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Lot",
+       x = "Sqft Lot",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Lot"))
 ```
 
 The histogram above visualizes the distribution of `sqft_lot`. Similar to `sqft_living`, this variable is right-skewed, with most homes having smaller lot sizes and relatively fewer very large lots.
@@ -329,14 +388,24 @@ The histogram above visualizes the distribution of `sqft_lot`. Similar to `sqft_
 
 ```{r price_vs_sqft_above, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Square Footage Above Ground
-plot(train_df_non_linear$sqft_above, train_df_non_linear$price, main = "Price vs. Sqft Above Ground", xlab = "Sqft Above Ground", ylab = "Price", pch = 20, col = "red")
+ggplot(data = train_df_non_linear, aes(x = sqft_above, y = price)) +
+  geom_point(pch = 20, col = "red") +
+  labs(title = "Price vs. Sqft Above Ground",
+       x = "Sqft Above Ground",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Above Ground"))
 ```
 
 In the scatter plot above, we compare `price` against `sqft_above` (square footage of the interior housing space above ground level). This analysis helps us explore the impact of above-ground living space on home prices.
 
 ```{r distribution_sqft_above, echo = FALSE, include = TRUE}
 # Distribution of Square Footage Above Ground
-hist(train_df_non_linear$sqft_above, main = "Distribution of Sqft Above Ground", xlab = "Sqft Above Ground", breaks = 50)
+ggplot(data = train_df_non_linear, aes(x = sqft_above)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Above Ground",
+       x = "Sqft Above Ground",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Above Ground"))
 ```
 
 The histogram above shows the distribution of `sqft_above`. It suggests that most homes have similar above-ground square footage, with relatively fewer having significantly larger or smaller above-ground spaces.
@@ -347,15 +416,29 @@ Excluding homes that do not have a basement.
 
 ```{r price_vs_sqft_basement, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Square Footage of Basement (excluding 0 sqft basement)
-plot(train_df_non_linear$sqft_basement[train_df_non_linear$sqft_basement > 0], train_df_non_linear$price[train_df_non_linear$sqft_basement > 0],
-     main = "Price vs. Sqft Basement", xlab = "Sqft Basement", ylab = "Price", pch = 20, col = "purple")
+# Filter data for non-zero sqft_basement
+filtered_data <- train_df_non_linear[train_df_non_linear$sqft_basement > 0,]
+
+# Scatter plot with custom caption
+ggplot(data = filtered_data, aes(x = sqft_basement, y = price)) +
+  geom_point(pch = 20, col = "purple") +
+  labs(title = "Price vs. Sqft Basement",
+       x = "Sqft Basement",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Basement (Non-Zero Values)"))
 ```
 
 The scatter plot above compares `price` against `sqft_basement` (square footage of the interior housing space below ground level). This visualization helps us understand if the presence and size of a basement influence home prices.
 
 ```{r distribution_sqft_basement, echo = FALSE, include = TRUE}
 # Distribution of Square Footage of Basement (excluding 0 values)
-hist(train_df_non_linear$sqft_basement[train_df_non_linear$sqft_basement > 0], main = "Distribution of Sqft Basement", xlab = "Sqft Basement", breaks = 50)
+# Histogram with custom caption
+ggplot(data = filtered_data, aes(x = sqft_basement)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Basement",
+       x = "Sqft Basement",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Basement (Non-Zero Values)"))
 ```
 
 The histogram above visualizes the distribution of `sqft_basement`. It indicates that most homes have little to no basement space, while some have larger basement areas.
@@ -364,14 +447,24 @@ The histogram above visualizes the distribution of `sqft_basement`. It indicates
 
 ```{r price_vs_yr_built, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Year Built
-plot(train_df_non_linear$yr_built, train_df_non_linear$price, main = "Price vs. Year Built", xlab = "Year Built", ylab = "Price", pch = 20, col = "orange")
+ggplot(data = train_df_non_linear, aes(x = yr_built, y = price)) +
+  geom_point(pch = 20, col = "orange") +
+  labs(title = "Price vs. Year Built",
+       x = "Year Built",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Year Built"))
 ```
 
 The scatter plot above compares `price` against the year when homes were initially built (`yr_built`). This analysis helps us understand how the age of a home relates to its sale price.
 
 ```{r distribution_yr_built, echo = FALSE, include = TRUE}
 # Distribution of Year Built
-hist(train_df_non_linear$yr_built, main = "Distribution of Year Built", xlab = "Year Built", breaks = 50)
+ggplot(data = train_df_non_linear, aes(x = yr_built)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Year Built",
+       x = "Year Built",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Year Built"))
 ```
 
 The histogram above displays the distribution of `yr_built`. It provides insights into the distribution of home ages in the dataset.
@@ -381,19 +474,40 @@ The histogram above displays the distribution of `yr_built`. It provides insight
 Excluding homes that did not have a documented renovation.
 
 ```{r price_vs_yr_renovated, echo = FALSE, include = TRUE}
+# Find lowest non-zero year renovated
+lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
+
+# Filter data for non-zero yr_renovated
+filtered_data <- train_df_non_linear[train_df_non_linear$yr_renovated > 0,]
+
 # Scatter plot of Price vs. Year Renovated
 lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
-plot(train_df_non_linear$yr_renovated, train_df_non_linear$price, xlim = c(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated)),
-     main = "Price vs. Year Renovated", xlab = "Year Renovated", ylab = "Price", pch = 20, col = "brown")
+ggplot(data = filtered_data, aes(x = yr_renovated, y = price)) +
+  geom_point(pch = 20, col = "brown") +
+  labs(title = "Price vs. Year Renovated",
+       x = "Year Renovated",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Year Renovated (Non-Zero Values)")) +
+  xlim(c(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated)))
 ```
 
 In the scatter plot above, we compare `price` against the year of the last renovation (`yr_renovated`). This analysis helps us understand whether recent renovations impact home prices.
 
-```{r distribution_yr_renovated, echo = FALSE, include = TRUE}
+```{r distribution_yr_renovated, echo = FALSE, include = TRUE, warning = FALSE}
+# Find lowest non-zero year renovated
+lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
+
+# Filter data for non-zero yr_renovated
+filtered_data <- train_df_non_linear[train_df_non_linear$yr_renovated > 0,]
+
 # Histogram of Year Renovated
-hist(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0],
-     main = "Histogram of Year Renovated", xlab = "Year Renovated",
-     breaks = seq(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated), by = 1), col = "orange")
+ggplot(data = filtered_data, aes(x = yr_renovated)) +
+  geom_histogram(fill = "orange") +
+  labs(title = "Histogram of Year Renovated",
+       x = "Year Renovated",
+       y = "Density",
+       caption = generate_figure_caption("Histogram of Year Renovated (Non-Zero Values)")) +
+  xlim(c(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated)))
 ```
 
 The histogram above visualizes the distribution of `yr_renovated`. It provides insights into the distribution of renovation years in the dataset.
@@ -402,14 +516,24 @@ The histogram above visualizes the distribution of `yr_renovated`. It provides i
 
 ```{r price_vs_distance_to_convergence, echo = FALSE, include = TRUE}
 # Scatter plot of Price vs. Distance to Convergence
-plot(train_df_non_linear$distance_to_convergence, train_df_non_linear$price, main = "Price vs. Distance to Convergence", xlab = "Distance to Convergence", ylab = "Price", pch = 20, col = "violet")
+ggplot(data = train_df_non_linear, aes(x = distance_to_convergence, y = price)) +
+  geom_point(pch = 20, col = "violet") +
+  labs(title = "Price vs. Distance to Convergence",
+       x = "Distance to Convergence",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Distance to Convergence"))
 ```
 
 The scatter plot above compares `price` against `distance_to_convergence`. This analysis helps us explore whether the distance to a convergence point impacts home prices.
 
 ```{r distribution_distance_to_convergence, echo = FALSE, include = TRUE}
 # Distribution of Distance to Convergence
-hist(train_df_non_linear$distance_to_convergence, main = "Distribution of Distance to Convergence", xlab = "Distance to Convergence", breaks = 50)
+ggplot(data = train_df_non_linear, aes(x = distance_to_convergence)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Distance to Convergence",
+       x = "Distance to Convergence",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Distance to Convergence"))
 ```
 
 ### Categorical Variable Analysis
@@ -419,15 +543,35 @@ The distribution and count of categorical variables such as `bedrooms`, `bathroo
 #### Price vs. Bedrooms
 
 ```{r price_vs_bedrooms, echo = FALSE, include = TRUE}
+# Convert bedrooms to factor
+train_df_non_linear$bedrooms_factor <- factor(train_df_non_linear$bedrooms)
+
 # Binned Boxplot of Price vs. Bedrooms
-boxplot(train_df_non_linear$price ~ train_df_non_linear$bedrooms, main = "Price vs. Bedrooms", xlab = "Bedrooms", ylab = "Price", col = "blue")
+ggplot(data = train_df_non_linear, aes(x = bedrooms_factor, y = price)) +
+  geom_boxplot(fill = "blue") +
+  labs(title = "Price vs. Bedrooms",
+       x = "Bedrooms",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Bedrooms"))
 ```
 
 The scatter plot above compares `price` against the number of `bedrooms`. This visualization helps us understand how the number of bedrooms influences home prices.
 
 ```{r distribution_bedrooms, echo = FALSE, include = TRUE}
-# Bar plot for the distribution of Bedrooms
-barplot(table(train_df_non_linear$bedrooms), main = "Distribution of Bedrooms", xlab = "Number of Bedrooms", ylab = "Frequency")
+# Filter data excluding 33 bedrooms
+filtered_bedrooms <- train_df_non_linear$bedrooms[train_df_non_linear$bedrooms != 33]
+
+# Calculate frequencies of each bedroom count
+bedroom_frequencies <- table(filtered_bedrooms)
+
+ggplot(data = data.frame(filtered_bedrooms = as.factor(names(bedroom_frequencies)),
+                        filtered_counts = as.numeric(bedroom_frequencies)),
+       aes(x = filtered_bedrooms, y = filtered_counts)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(title = "Distribution of Bedrooms (Excluding 33 Bedrooms)",
+       x = "Number of Bedrooms",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Bedrooms (Excluding 33 Bedrooms)"))
 ```
 
 The bar plot above displays the distribution of the `bedrooms` variable, showing the frequency of each bedroom count.
@@ -435,15 +579,33 @@ The bar plot above displays the distribution of the `bedrooms` variable, showing
 #### Price vs. Bathrooms
 
 ```{r price_vs_bathrooms, echo = FALSE, include = TRUE}
+# Convert bathrooms to factor
+train_df_non_linear$bathrooms_factor <- factor(train_df_non_linear$bathrooms)
+
 # Binned Boxplot of Price vs. Bathrooms
-boxplot(train_df_non_linear$price ~ train_df_non_linear$bathrooms, main = "Price vs. Bathrooms", xlab = "Bathrooms", ylab = "Price", col = "green")
+ggplot(data = train_df_non_linear, aes(x = bathrooms_factor, y = price)) +
+  geom_boxplot(fill = "green") +
+  labs(title = "Price vs. Bathrooms",
+       x = "Bathrooms",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Bathrooms"))
 ```
 
 In the scatter plot above, we compare `price` against the number of `bathrooms`. This analysis helps us explore the relationship between the number of bathrooms and home prices.
 
 ```{r distribution_bathrooms, echo = FALSE, include = TRUE}
+# Get data for bar plot
+bathrooms_counts <- table(train_df_non_linear$bathrooms)
+bathrooms <- as.numeric(names(bathrooms_counts))
+counts <- as.numeric(bathrooms_counts)
+
 # Bar plot for the distribution of Bathrooms
-barplot(table(train_df_non_linear$bathrooms), main = "Distribution of Bathrooms", xlab = "Number of Bathrooms", ylab = "Frequency")
+ggplot(data = data.frame(bathrooms, counts), aes(x = bathrooms, y = counts)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(title = "Distribution of Bathrooms",
+       x = "Number of Bathrooms",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Bathrooms"))
 ```
 
 The bar plot above visualizes the distribution of the `bathrooms` variable, showing the frequency of each bathroom count.
@@ -452,14 +614,28 @@ The bar plot above visualizes the distribution of the `bathrooms` variable, show
 
 ```{r price_vs_floors, echo = FALSE, include = TRUE}
 # Binned Boxplot of Price vs. Floors
-boxplot(train_df_non_linear$price ~ train_df_non_linear$floors, main = "Price vs. Floors", xlab = "Floors", ylab = "Price", col = "orange")
+ggplot(data = train_df_non_linear, aes(x = floors, y = price, group = floors)) +
+  geom_boxplot(fill = "orange") +
+  labs(title = "Price vs. Floors",
+       x = "Floors",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Floors"))
 ```
 
 The scatter plot above compares `price` against the number of `floors`. This analysis helps us understand how the number of floors in a home relates to its sale price.
 
 ```{r distribution_floors, echo = FALSE, include = TRUE}
+floors_counts <- table(train_df_non_linear$floors)
+floors <- as.numeric(names(floors_counts))
+counts <- as.numeric(floors_counts)
+
 # Bar plot for the distribution of Floors
-barplot(table(train_df_non_linear$floors), main = "Distribution of Floors", xlab = "Number of Floors", ylab = "Frequency")
+ggplot(data = data.frame(floors, counts), aes(x = floors, y = counts)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  labs(title = "Distribution of Floors",
+       x = "Number of Floors",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Floors"))
 ```
 
 The bar plot above displays the distribution of the `floors` variable, showing the frequency of each floor count.
@@ -467,20 +643,33 @@ The bar plot above displays the distribution of the `floors` variable, showing t
 #### Price vs. Waterfront
 
 ```{r price_vs_waterfront, echo = FALSE, include = TRUE}
-# Binned Boxplot of Price vs. Waterfront
-boxplot(price ~ waterfront_1, data = train_df_non_linear,
-        main = "Price vs. Waterfront", xlab = "Waterfront", ylab = "Price", col = "purple",
-        names = c("No", "Yes"))  # Labels for waterfront status
-
+ggplot(data = train_df_non_linear, aes(x = waterfront_1, y = price, group = waterfront_1)) +
+  geom_boxplot(fill = "purple") +
+  labs(title = "Price vs. Waterfront",
+       x = "Waterfront",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Waterfront"),
+       fill = "Waterfront",
+       levels = c("No", "Yes"))  # Labels for waterfront status
 ```
 
 In the scatter plot above, we compare `price` against the `waterfront` variable. This visualization helps us explore how having a waterfront view impacts home prices.
 
 ```{r distribution_waterfront, echo = FALSE, include = TRUE}
+# Get data for bar plot
+waterfront_counts <- table(train_df_non_linear$waterfront_1)
+waterfront <- as.numeric(names(waterfront_counts))
+counts <- as.numeric(waterfront_counts)
+
 # Bar plot for the distribution of Waterfront
-barplot(table(train_df_non_linear$waterfront_1), main = "Distribution of Waterfront",
-        xlab = "Waterfront", ylab = "Frequency", col = "purple",
-        names.arg = c("No", "Yes"))  # Labels for waterfront status
+ggplot(data = data.frame(waterfront, counts), aes(x = waterfront, y = counts)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(title = "Distribution of Waterfront",
+       x = "Waterfront",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Waterfront"),
+       fill = "Waterfront",
+       levels = c("No", "Yes"))  # Labels for waterfront status
 
 ```
 
@@ -489,11 +678,17 @@ The bar plot above visualizes the distribution of the `waterfront` variable, sho
 #### Price vs. View
 
 ```{r price_vs_view, echo = FALSE, include = TRUE}
-# Converting dummy variables back to a single categorical variable
-train_df_non_linear$view_category <- apply(train_df_non_linear[, c("view_0", "view_1", "view_2", "view_3", "view_4")], 1, function(x) which(x==1))
+# Convert view categories from dummy variables to a factor for better labeling in ggplot
+train_df_non_linear$view_category <- factor(apply(train_df_non_linear[, c("view_0", "view_1", "view_2", "view_3", "view_4")], 1, function(x) which(x == 1)),
+                                             labels = c("View 0", "View 1", "View 2", "View 3", "View 4"))
 
-# Boxplot of Price vs. View Quality
-boxplot(train_df_non_linear$price ~ train_df_non_linear$view_category, main = "Price vs. View Quality", xlab = "View Quality", ylab = "Price", col = "brown")
+# Create the boxplot with ggplot2
+ggplot(train_df_non_linear, aes(x = view_category, y = price)) +
+  geom_boxplot(fill = "brown") +
+  labs(title = "Price vs. View Quality",
+       x = "View Quality",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. View Quality"))
 ```
 
 The scatter plot above compares `price` against the `view` variable, which represents the quality of the property's view. This analysis helps us explore how the view quality impacts home prices.
@@ -502,8 +697,16 @@ The scatter plot above compares `price` against the `view` variable, which repre
 # Calculate frequencies of each view quality rating
 view_frequencies <- colSums(train_df_non_linear[, c("view_0", "view_1", "view_2", "view_3", "view_4")])
 
-# Bar plot for the distribution of View
-barplot(view_frequencies, main = "Distribution of View", xlab = "View Quality", ylab = "Frequency")
+# Convert frequencies to data frame for ggplot2
+view_df <- data.frame(View = names(view_frequencies), Frequency = view_frequencies)
+
+# Create the bar plot with ggplot2
+ggplot(view_df, aes(x = View, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(title = "Distribution of View Quality",
+       x = "View Quality",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of View Quality"))
 ```
 
 The bar plot above displays the distribution of the `view` variable, showing the frequency of different view quality ratings.
@@ -511,12 +714,17 @@ The bar plot above displays the distribution of the `view` variable, showing the
 #### Price vs. Condition
 
 ```{r price_vs_condition, echo = FALSE, include = TRUE}
-# Converting dummy variables back to a single categorical variable
-train_df_non_linear$condition_category <- apply(train_df_non_linear[, c("condition_1", "condition_2", "condition_3", "condition_4", "condition_5")], 1, function(x) which(x==1))
+# Convert condition categories from dummy variables to a factor
+train_df_non_linear$condition_category <- factor(apply(train_df_non_linear[, c("condition_1", "condition_2", "condition_3", "condition_4", "condition_5")], 1, function(x) which(x == 1)),
+                                                 labels = c("Condition 1", "Condition 2", "Condition 3", "Condition 4", "Condition 5"))
 
-# Boxplot of Price vs. Condition
-boxplot(train_df_non_linear$price ~ train_df_non_linear$condition_category, main = "Price vs. Condition", xlab = "Condition", ylab = "Price", col = "blue")
-
+# Create the boxplot with ggplot2
+ggplot(train_df_non_linear, aes(x = condition_category, y = price)) +
+  geom_boxplot(fill = "blue") +
+  labs(title = "Price vs. Condition",
+       x = "Condition",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. Condition"))
 ```
 
 In the scatter plot above, we compare `price` against the `condition` variable, which represents the condition of the property. This analysis helps us explore how property condition relates to home prices.
@@ -525,8 +733,16 @@ In the scatter plot above, we compare `price` against the `condition` variable, 
 # Calculate frequencies of each condition rating
 condition_frequencies <- colSums(train_df_non_linear[, c("condition_1", "condition_2", "condition_3", "condition_4", "condition_5")])
 
-# Bar plot for the distribution of Condition
-barplot(condition_frequencies, main = "Distribution of Condition", xlab = "Condition Rating", ylab = "Frequency")
+# Convert frequencies to a data frame for ggplot2
+condition_df <- data.frame(Condition = names(condition_frequencies), Frequency = condition_frequencies)
+
+# Create the bar plot with ggplot2
+ggplot(condition_df, aes(x = Condition, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(title = "Distribution of Condition",
+       x = "Condition Rating",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Condition"))
 ```
 
 The bar plot above visualizes the distribution of the `condition` variable, showing the frequency of different condition ratings.
@@ -552,12 +768,12 @@ grade_labels <- sub("grade_", "", grade_columns) # Remove 'grade_' prefix
 grade_labels <- gsub("_", "-", grade_labels) # Replace underscores with hyphens
 
 # Create a boxplot of Price vs. Grade
-# The grade categories are used as the x-axis and the prices as the y-axis
-boxplot(train_df_non_linear$price ~ factor(train_df_non_linear$grade_category, labels = grade_labels),
-        main = "Price vs. Grade",
-        xlab = "Grade",
-        ylab = "Price",
-        col = "green")
+ggplot(train_df_non_linear, aes(x = factor(grade_category, labels = grade_labels), y = price)) +
+  geom_boxplot(fill = "green") +
+  labs(title = "Price vs. Grade",
+       x = "Grade",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. Grade"))
 ```
 
 The scatter plot above compares `price` against the `grade` variable, which has been aggregated into categories as per the provided header. This analysis helps us explore how the grade of construction and design impacts home prices.
@@ -567,24 +783,20 @@ The scatter plot above compares `price` against the `grade` variable, which has 
 # Convert the grade category to a numeric variable for histogram plotting
 train_df_non_linear$grade_category_numeric <- as.numeric(train_df_non_linear$grade_category)
 
-# Define the number of breaks for the histogram based on the unique grade categories
+# Define breaks for histogram
 num_breaks <- length(unique(train_df_non_linear$grade_category_numeric, na.rm = TRUE))
 hist_breaks <- seq(min(train_df_non_linear$grade_category_numeric, na.rm = TRUE) - 0.5,
                    max(train_df_non_linear$grade_category_numeric, na.rm = TRUE) + 0.5,
                    length.out = num_breaks + 1)
 
-# Create the histogram with the specified number of breaks
-hist(train_df_non_linear$grade_category_numeric,
-     main = "Distribution of Grade",
-     xlab = "Grade",
-     ylab = "Frequency",
-     col = "purple",
-     breaks = hist_breaks,
-     xaxt = "n")
-
-# Add custom x-axis labels to the histogram
-# The labels are centered at each grade category
-axis(1, at = seq_along(grade_labels), labels = grade_labels)
+# Create a histogram with ggplot2
+ggplot(train_df_non_linear, aes(x = grade_category_numeric)) +
+  geom_histogram(fill = "purple", breaks = hist_breaks) +
+  scale_x_continuous(breaks = seq_along(grade_labels), labels = grade_labels) +
+  labs(title = "Distribution of Grade",
+       x = "Grade",
+       y = "Frequency",
+       caption = generate_figure_caption("Histogram of Distribution of Grade"))
 ```
 
 The bar plot above displays the distribution of the `grade_category` variable, showing the frequency of different grade categories.
@@ -610,7 +822,7 @@ table_height <- "400px"
 
 # Create a scrollable div and place the table inside it
 cat(sprintf('<div style="overflow-y: scroll; max-height: %s;">', table_height))
-kable(top_20_corr, col.names = c("Variable", "Correlation with Price"), caption = "Top 20 Correlation Values with Price")
+kable(top_20_corr, col.names = c("Variable", "Correlation with Price"), caption = generate_figure_caption("Top 20 Correlation Values with Price"))
 cat('</div>')
 ```
 
@@ -623,7 +835,10 @@ top_20_corr_matrix <- cor_matrix[top_20_corr_variables, top_20_corr_variables]
 # Create a heatmap
 ggplot(melt(top_20_corr_matrix), aes(Var1, Var2, fill = value)) +
   geom_tile() +
-  labs(title = "Top 20 Correlation Values", x = "Variable", y = "Variable") +
+  labs(title = "Top 20 Correlations",
+       x = "Variable",
+       y = "Variable",
+       caption = generate_figure_caption("Heatmap showing the top 20 correlations")) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
@@ -632,34 +847,36 @@ ggplot(melt(top_20_corr_matrix), aes(Var1, Var2, fill = value)) +
 # Selecting predictors and excluding the response variable 'price'
 predictors <- dplyr::select(train_df_linear, -price)
 
-# Convert all categorical variables to numeric using one-hot encoding
+# Convert factors to numeric
 numeric_predictors <- predictors %>%
-  mutate_if(is.factor, as.numeric) %>%
-  mutate_if(is.character, as.factor) %>%
-  mutate_if(is.factor, as.numeric)
+  mutate(across(where(is.factor), as.numeric)) %>%
+  mutate(across(where(is.character), ~as.numeric(as.factor(.))))
 
 # Calculate the correlation matrix
 corr_matrix <- cor(numeric_predictors, use = "pairwise.complete.obs")
 
-# Create a tibble for correlated pairs
-correlated_pairs_df <- expand.grid(
-  Variable1 = names(numeric_predictors),
-  Variable2 = names(numeric_predictors)
-) %>%
-  filter(Variable1 < Variable2) %>% # Ensure unique pairs
-  mutate(Correlation = map2_dbl(Variable1, Variable2, ~corr_matrix[.x, .y])) %>%
-  filter(abs(Correlation) > 0.8) %>%  # Filter for high correlations
-  arrange(desc(abs(Correlation)))
+# Convert the correlation matrix to a long format
+correlated_pairs_df <- melt(corr_matrix)
 
-# Print the correlated pairs
-print(correlated_pairs_df)
+# Filter out redundant pairs (keep only lower triangle of the matrix)
+correlated_pairs_df <- correlated_pairs_df %>%
+  filter(Var1 != Var2) %>%  # Remove self-correlations
+  filter(abs(value) > 0.8) %>%
+  filter(match(Var1, rownames(corr_matrix)) < match(Var2, rownames(corr_matrix)))
+
+# Rename columns for clarity
+correlated_pairs_df <- correlated_pairs_df %>%
+  rename(Variable1 = Var1, Variable2 = Var2, Correlation = value)
+
+# Print the correlated pairs as a kable table with a caption
+knitr::kable(correlated_pairs_df, caption = generate_figure_caption("Correlated Pairs with Absolute Correlation > 0.8"))
 ```
 
 ```{r corr_removal_table, echo = FALSE, include = TRUE, results = 'asis'}
 # Output the table of highly correlated pairs using knitr::kable()
 knitr_table <- kable(
   correlated_pairs_df,
-  caption = "Highly Correlated Variable Pairs",
+  caption = generate_figure_caption("Highly Correlated Variable Pairs"),
   format = "markdown"
 )
 print(knitr_table)
@@ -705,9 +922,9 @@ global_max <- monthly_trends[which.max(monthly_trends$Average_Price), ]
 
 ggplot(monthly_trends, aes(x = Month, y = Average_Price)) +
   geom_line() +
-  geom_text(data = global_max, aes(x = Month, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Monthly Trends in Average House Prices", x = "Month", y = "Average Price") +
-  scale_x_continuous(breaks = 1:12, labels = month.name) +  # Set month names on x-axis
+  geom_text(data = global_max, aes(x = Month, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +
+  labs(title = "Monthly Trends in Average House Prices", x = "Month", y = "Average Price", caption = generate_figure_caption("Monthly Trends in Average House Prices")) +
+  scale_x_continuous(breaks = 1:12, labels = month.name) +
   theme_minimal()
 ```
 
@@ -723,7 +940,7 @@ global_max_count <- monthly_counts_df[which.max(monthly_counts_df$Count), ]
 ggplot(monthly_counts_df, aes(x = Month, y = Count, group = 1)) +
   geom_bar(stat = "identity") +
   geom_text(data = global_max_count, aes(x = Month, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Monthly Trends in Count of Homes Sold", x = "Month", y = "Count of Homes Sold") +
+  labs(title = "Monthly Trends in Count of Homes Sold", x = "Month", y = "Count of Homes Sold", caption = generate_figure_caption("Monthly Trends in Count of Homes Sold")) +
   theme_minimal()
 ```
 
@@ -748,7 +965,7 @@ global_max_seasonal <- seasonal_trends[which.max(seasonal_trends$Average_Price),
 ggplot(seasonal_trends, aes(x = Season, y = Average_Price, fill = Season)) +
   geom_bar(stat = "identity") +
   geom_text(data = global_max_seasonal, aes(label = paste("Global Max:", round(Average_Price, 2)), y = Average_Price), vjust = -0.5) +
-  labs(title = "Seasonal Trends in Average House Prices", x = "Season", y = "Average Price") +
+  labs(title = "Seasonal Trends in Average House Prices", x = "Season", y = "Average Price", caption = generate_figure_caption("Seasonal Trends in Average House Prices")) +
   theme_minimal()
 
 ```
@@ -770,7 +987,7 @@ global_max_count_seasonal <- seasonal_counts_df[which.max(seasonal_counts_df$Cou
 ggplot(seasonal_counts_df, aes(x = Season, y = Count, fill = Season)) +
   geom_bar(stat = "identity") +
   geom_text(data = global_max_count_seasonal, aes(label = paste("Global Max:", Count), y = Count), vjust = -0.5) +
-  labs(title = "Seasonal Trends in Count of Homes Sold", x = "Season", y = "Count of Homes Sold") +
+  labs(title = "Seasonal Trends in Count of Homes Sold", x = "Season", y = "Count of Homes Sold", caption = generate_figure_caption("Seasonal Trends in Count of Homes Sold")) +
   theme_minimal()
 
 ```
@@ -788,7 +1005,7 @@ global_max_weekly <- weekly_trends[which.max(weekly_trends$Average_Price), ]
 ggplot(weekly_trends, aes(x = Week_of_Year, y = Average_Price)) +
   geom_line() +
   geom_text(data = global_max_weekly, aes(x = Week_of_Year, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Weekly Trends in Average House Prices", x = "Week of Year", y = "Average Price") +
+  labs(title = "Weekly Trends in Average House Prices", x = "Week of Year", y = "Average Price", caption = generate_figure_caption("Weekly Trends in Average House Prices")) +
   theme_minimal()
 ```
 
@@ -803,7 +1020,7 @@ global_max_count_weekly <- weekly_counts_df[which.max(weekly_counts_df$Count), ]
 ggplot(weekly_counts_df, aes(x = Week_of_Year, y = Count)) +
   geom_bar(stat = "identity") +
   geom_text(data = global_max_count_weekly, aes(x = Week_of_Year, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Weekly Trends in Count of Homes Sold", x = "Week of Year", y = "Count of Homes Sold") +
+  labs(title = "Weekly Trends in Count of Homes Sold", x = "Week of Year", y = "Count of Homes Sold", caption = generate_figure_caption("Weekly Trends in Count of Homes Sold")) +
   theme_minimal()
 ```
 
@@ -822,7 +1039,7 @@ ggplot(daily_trends, aes(x = Day_of_Year, y = Average_Price)) +
   geom_text(data = global_max_daily
 
 , aes(x = Day_of_Year, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Daily Trends in Average House Prices", x = "Day of Year", y = "Average Price") +
+  labs(title = "Daily Trends in Average House Prices", x = "Day of Year", y = "Average Price", caption = generate_figure_caption("Daily Trends in Average House Prices")) +
   theme_minimal()
 ```
 
@@ -837,7 +1054,7 @@ global_max_count_daily <- daily_counts_df[which.max(daily_counts_df$Count), ]
 ggplot(daily_counts_df, aes(x = Day_of_Year, y = Count)) +
   geom_bar(stat = "identity") +
   geom_text(data = global_max_count_daily, aes(x = Day_of_Year, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
-  labs(title = "Daily Trends in Count of Homes Sold", x = "Day of Year", y = "Count of Homes Sold") +
+  labs(title = "Daily Trends in Count of Homes Sold", x = "Day of Year", y = "Count of Homes Sold", caption = generate_figure_caption("Daily Trends in Count of Homes Sold")) +
   theme_minimal()
 ```
 
@@ -847,7 +1064,7 @@ ggplot(daily_counts_df, aes(x = Day_of_Year, y = Count)) +
 
 Investigating the spatial aspect by analyzing the `distance_to_convergence` variable.
 
-```{r geographical_price_analysis, echo = FALSE, include = TRUE}
+```{r geographical_price_analysis, echo = FALSE, include = TRUE, results = 'asis'}
 # Calculate z-scores for the prices
 train_df_non_linear <- train_df_non_linear %>%
   mutate(z_score = scale(price))
@@ -904,6 +1121,7 @@ m <- m %>%
   ) %>%
   setView(lng = convergence_point[2], lat = convergence_point[1], zoom = 10)
 
+cat(generate_figure_caption('Distance to Convergence Map'))
 # Print the map
 m
 ```
@@ -920,11 +1138,10 @@ To commence the model development process, we establish an Ordinary Least Square
 
 ```{r initial_model, echo = FALSE, include = FALSE}
 # Drop columns created for visualizations in prior steps, and columns that have almost perfect correlation and multicollinearity.
-train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
-train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
-test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
-test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average")]
-
+train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
 
 #' Add Model Performance to Dataframe
 #'
@@ -1035,10 +1252,13 @@ view_model_results <- function(df_results, caption = "Model Comparison") {
   df_results$R_squared_train <- round(df_results$R_squared_train, 5)
   df_results$R_squared_test <- round(df_results$R_squared_test, 5)
 
+  # Generate the caption using generate_figure_caption function
+  full_caption <- generate_figure_caption(caption)
+
   # Display the dataframe using datatable
   datatable(
     df_results,
-    caption = caption,
+    caption = full_caption,
     options = list(
       paging = FALSE,
       autoWidth = TRUE,
@@ -1117,7 +1337,7 @@ evaluate_model <- function(model_name, model, train_df, test_df, target_var, df_
 }
 ```
 
-```{r running_other_models}
+```{r build_inital_linear_model}
 # Fit a linear regression model to the training data
 linear_model_initial <- lm(price ~ ., data = train_df_linear)
 
@@ -1127,7 +1347,7 @@ df_results <- evaluate_model("OLS_linear", linear_model_initial, train_df_linear
 # Show inital linear model results
 summary(linear_model_initial)
 
-view_model_results(df_results)
+view_model_results(df_results, caption = "OLS Linear Model Table")
 ```
 
 
@@ -1157,7 +1377,9 @@ As we scrutinize our OLS model's assumptions through diagnostic plotting, we enc
 
 The residuals vs fitted plot is our first stop to assess the assumption of linearity. The ideal scenario is a random spread of residuals around the horizontal axis, indicating a linear relationship between predictors and the response.
 
-```{r residuals_vs_fitted_plot, echo = FALSE}
+```{r residuals_vs_fitted_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Residuals vs Fitted Plot for Linear Model")
+cat(caption)
 plot(linear_model_initial, 1)
 ```
 
@@ -1168,7 +1390,9 @@ plot(linear_model_initial, 1)
 
 The Q-Q plot offers a visual comparison of the distribution of residuals against a perfectly normal distribution. Deviations from the diagonal indicate departures from normality.
 
-```{r QQ_plot, echo = FALSE}
+```{r QQ_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("QQ Plot for Linear Model")
+cat(caption)
 plot(linear_model_initial, 2)
 ```
 
@@ -1179,8 +1403,11 @@ plot(linear_model_initial, 2)
 
 Also known as the spread-location plot, it's used to check for equal variance of residuals (homoscedasticity).
 
-```{r scale_location_plot, echo = FALSE}
+```{r scale_location_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Scale-Location Plot for Linear Model")
+cat(caption)
 plot(linear_model_initial, 3)
+
 ```
 
 **Observation**: The red line's upward trajectory indicates an increase in the spread of residuals as the fitted values rise, which is a classic sign of heteroscedasticity.
@@ -1189,7 +1416,9 @@ plot(linear_model_initial, 3)
 
 This plot helps us identify influential data points that could unduly sway our model's predictions.
 
-```{r residuals_vs_leverage_plot, echo = FALSE}
+```{r residuals_vs_leverage_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Residuals vs Leverage Plot for Linear Model")
+cat(caption)
 plot(linear_model_initial, 5)
 ```
 
@@ -1199,7 +1428,9 @@ plot(linear_model_initial, 5)
 
 The Cook's distance plot is instrumental in quantifying the influence of each data point.
 
-```{r cooks_distance_plot, echo = FALSE}
+```{r cooks_distance_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Cooks Distance Plot for Linear Model")
+cat(caption)
 plot(linear_model_initial, 4)
 ```
 
@@ -1285,10 +1516,14 @@ Since the p-value is `r ifelse(ad_test_results$p.value < 0.05, "less", "greater"
 
 #### Examining the Non-Linearity of the Model
 
-```{r boxcox, echo = FALSE, include = TRUE}
+```{r boxcox, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Box-Cox Plot for Linear Model")
+cat(caption)
 par(mfrow=c(1,1))
 bc <- boxcox(linear_model_initial, lambda=seq(-1,1,by=.1))
 optimal_lambda <- bc$x[which.max(bc$y)]
+
+
 ```
 
 As we can observe from the box cox plot above, the lambda that give the highest log-likehood is `r optimal_lambda`. We transform Y using the log transformation as shown below. We will examine these regression assumptions below.
@@ -1354,16 +1589,21 @@ df_results <- rbind(df_results, data.frame(
 ))
 
 # View the updated model results
-view_model_results(df_results)
+view_model_results(df_results, caption = "Transformation Model Addition")
 ```
 
-```{r transformed_model_plots, echo = FALSE, include = TRUE}
+```{r transformed_model_plots, echo = FALSE, include = TRUE, results = 'asis'}
+# Create a figure caption using the custom function
+caption <- generate_figure_caption("Diagnostic Plots for Transformed Model")
+
 coeff_trans <- transformed_model$coefficients
-summary(transformed_model)
-par(mfrow=c(1,1))
+
+# Set the layout to 2x2
+par(mfrow = c(2, 2))
+
+# Plot the transformed_model and add the caption
+cat(caption)
 plot(transformed_model)
-par(mfrow=c(1,1))
-boxplot(transformed_model$residuals)
 ```
 
 
@@ -1375,7 +1615,11 @@ To further investigate nonlinearity, constant variance of errors, and outliers, 
 
 We use the `ols_plot_resid_lev` function to create a plot for detecting outliers and observations with high leverage.
 
-```{r residuals_vs_leverage_plot_v2, echo=FALSE}
+```{r residuals_vs_leverage_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
+
+# Output figure and caption
+cat(generate_figure_caption("OLS Outlier and Leverage Diagnostics Linear Model"))
+# Plot the residuals vs leverage plot in the first row
 ols_plot_resid_lev(linear_model_initial)
 ```
 
@@ -1385,7 +1629,10 @@ ols_plot_resid_lev(linear_model_initial)
 
 We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect non-linearity, constant variances, and outliers in residuals.
 
-```{r residuals_vs_fitted_plot_v2, echo=FALSE}
+```{r residuals_vs_fitted_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
+# Output figure and caption
+cat(generate_figure_caption("Deleted Studentized Resid. vs Pred. Linear Model"))
+
 ols_plot_resid_stud_fit(linear_model_initial)
 ```
 
@@ -1395,9 +1642,12 @@ ols_plot_resid_stud_fit(linear_model_initial)
 
 We calculate Cook's distance for each observation to identify influential data points.
 
-```{r cooks_distance_calculation, echo=FALSE}
+```{r cooks_distance_calculation, echo=FALSE, include = TRUE, results = 'asis'}
 # Calculate Cook's distance for each observation
 cooksd <- cooks.distance(linear_model_initial)
+
+# Output figure and caption
+cat(generate_figure_caption("OLS Cooks Distance Plot for Linear Model"))
 
 # Create a plot of Cook's distance
 plot(cooksd, type = "h", main = "Cook's Distance", ylab = "Cook's Distance", xlab = "Observation Index")
@@ -1429,7 +1679,6 @@ influential_obs <- which(cooksd > threshold)
 print(influential_obs)
 ```
 
-- **Conclusion**:
 
 ```{r outlier_removal}
 # Remove outliers from both datasets
@@ -1470,24 +1719,25 @@ df_results <- evaluate_model("OLS_linear_VIF_10", linear_model_initial_vif, trai
 
 # Show updated linear model results
 summary(linear_model_initial_vif)
-view_model_results(df_results)
+view_model_results(df_results, caption = "VIF Multicollinearity Removed")
 ```
 
 #### Columns with High VIF Values
 
-| Column Name         | VIF Value |
-|---------------------|-----------|
-| day_of_year         | 18.74     |
-| grade_5             | 20.76     |
-| grade_6             | 166.84    |
-| grade_7             | 454.88    |
-| grade_8             | 371.93    |
-| grade_9             | 195.81    |
-| grade_10            | 88.27     |
-| grade_11            | 33.39     |
-| season_Summer       | 11.73     |
-| season_Fall         | 21.83     |
-| distance_to_convergence | 20.05 |
+```{r output_high_vif_values}
+# Create a data frame with the column names and VIF values
+vif_data <- data.frame(
+  "Column Name" = c("day_of_year", "grade_5", "grade_6", "grade_7", "grade_8", "grade_9", "grade_10", "grade_11", "season_Summer", "season_Fall", "distance_to_convergence"),
+  "VIF Value" = c(18.74, 20.76, 166.84, 454.88, 371.93, 195.81, 88.27, 33.39, 11.73, 21.83, 20.05)
+)
+
+# Create a figure caption using the custom function
+caption <- generate_figure_caption("Variable Inflation Factors (VIF) Table")
+
+# Generate the kable table
+kable(vif_data, format = "html", caption = caption)
+
+```
 
 In our linear regression analysis, we have identified several columns with high Variance Inflation Factor (VIF) values exceeding the threshold of 10. VIF is a measure that quantifies the degree of multicollinearity between predictor variables in a regression model. High VIF values indicate that certain predictor variables are highly correlated with others, leading to multicollinearity issues. To build a more reliable and interpretable linear regression model, we are dropping these columns with high VIF values. By doing so, we aim to reduce the multicollinearity that can lead to unstable coefficient estimates and make it challenging to interpret the individual impact of each predictor variable on the target variable (price).
 
@@ -1495,7 +1745,7 @@ Despite the removal of these high VIF columns, it's worth noting that the model'
 
 ### Weighted Least Squares
 
-```{r weighted_least_squares}
+```{r weighted_least_squares, echo = FALSE, include = TRUE, results = 'asis'}
 # Extract absolute residuals from linear_modle_inital as VIF removal reduced our performance
 abs_residuals <- abs(linear_model_initial$residuals)
 
@@ -1515,11 +1765,15 @@ weighted_regression_model <- lm(log(price) ~ ., weights = weights, data = train_
 summary(weighted_regression_model)
 
 # Create diagnostic plots
-par(mfrow=c(1,2))
+par(mfrow=c(2,2))
+cat(generate_figure_caption("Diagnostic Results for WLS"))
 plot(weighted_regression_model)
-par(mfrow=c(1,1))
+par(mfow=c(1,1))
+cat(generate_figure_caption("Boxplot of WLS Residuals"))
 boxplot(weighted_regression_model$residuals)
+```
 
+```{r wls_model_evaluation}
 # Perform Breusch-Pagan test for heteroscedasticity
 bptest(weighted_regression_model, studentize = TRUE)
 
@@ -1557,7 +1811,7 @@ df_results <- rbind(df_results, data.frame(
 ))
 
 # View the updated model results
-view_model_results(df_results)
+view_model_results(df_results, caption = "Weighted Least Squares Model")
 ```
 
 #### Insights on WLS Linear Model
@@ -1575,7 +1829,7 @@ Use the test data set to assess the model performances. Here, build the best mul
 
 ### OLS Stepwise Model
 
-```{r step_models}
+```{r step_models, echo = TRUE}
 # Conditional logic based on the update_model_parameters flag
 if (update_model_parameters) {
   # Run each of the stepwise regression models and update the JSON file
@@ -1618,12 +1872,12 @@ df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linea
 df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
 
 
-view_model_results(df_results)
+view_model_results(df_results, "Step Model Additions")
 ```
 
 ### OLS Stepwise Model Outliers Removed
 
-```{r refit_all_OLS_models, echo = FALSE}
+```{r refit_all_OLS_models, echo = TRUE}
 # Fit a linear regression model to the training data
 linear_model_initial_outliers <- lm(price ~ ., data = train_df_linear_outliers)
 
@@ -1678,7 +1932,7 @@ df_results <- evaluate_model("OLS_Step_Forward_outliers", model_forward_outliers
 # Show initial linear model results
 summary(linear_model_initial_outliers)
 
-view_model_results(df_results)
+view_model_results(df_results, "Step Models without Outliers")
 ```
 
 ## V. Challenger Models
@@ -1859,7 +2113,7 @@ nn_model_row <- data.frame(
 
 # Append the new row to df_results
 df_results <- rbind(df_results, nn_model_row)
-view_model_results(df_results)
+view_model_results(df_results, "Neural Network Model Addition")
 ```
 
 ### Regression Tree
@@ -1910,7 +2164,7 @@ RMSE_test <- rmse(test_df_reg$price, p.rpart_test)
 
 # Append the results to df_results
 df_results <- rbind(df_results, data.frame(
-  Model = "Regression Tree with Tuning",
+  Model = "Regression Tree",
   SSE_train = SSE_train,
   SSE_test = SSE_test,
   R_squared_train = R_squared_train,
@@ -1923,7 +2177,7 @@ df_results <- rbind(df_results, data.frame(
 ))
 
 # View Model Results
-view_model_results(df_results)
+view_model_results(df_results, "Regression Tree Model Addition")
 ```
 
 ### Logistic Regression
