@@ -1522,8 +1522,7 @@ cat(caption)
 par(mfrow=c(1,1))
 bc <- boxcox(linear_model_initial, lambda=seq(-1,1,by=.1))
 optimal_lambda <- bc$x[which.max(bc$y)]
-
-
+print(optimal_lambda)
 ```
 
 As we can observe from the box cox plot above, the lambda that give the highest log-likehood is `r optimal_lambda`. We transform Y using the log transformation as shown below. We will examine these regression assumptions below.
@@ -1531,6 +1530,38 @@ As we can observe from the box cox plot above, the lambda that give the highest 
 ### Transformation Model
 
 ```{r transformation_model}
+# Function to transform a single value back to the original scale
+inverse_transform <- function(value, lambda=optimal_lambda) {
+  if (lambda != 0) {
+    return((value * lambda + 1)^(1 / lambda))
+  } else {
+    return(exp(value))
+  }
+}
+
+# Function to calculate SSE, RMSE, MAE, and SST with or without inverse transformation
+calculate_metrics <- function(actual, predicted, lambda = optimal_lambda) {
+  if (lambda != 0) {
+    # Apply inverse transformation to actual and predicted values
+    actual_original <- inverse_transform(actual, lambda)
+    predicted_original <- inverse_transform(predicted, lambda)
+
+    # Calculate SSE, RMSE, MAE, and SST
+    sse <- sum((actual_original - predicted_original)^2)
+    rmse <- sqrt(sse / length(actual_original))
+    mae <- mean(abs(actual_original - predicted_original))
+    sst <- sum((actual_original - mean(actual_original))^2)
+  } else {
+    # Calculate SSE, RMSE, MAE, and SST without transformation
+    sse <- sum((actual - predicted)^2)
+    rmse <- sqrt(sse / length(actual))
+    mae <- mean(abs(actual - predicted))
+    sst <- sum((actual - mean(actual))^2)
+  }
+
+  return(list(sse = sse, rmse = rmse, mae = mae, sst = sst))
+}
+
 # Apply the Box-Cox transformation to the training and test data
 if (optimal_lambda != 0) {
   transformed_price <- (train_df_linear$price^optimal_lambda - 1) / optimal_lambda
@@ -1543,49 +1574,38 @@ if (optimal_lambda != 0) {
 # Create a linear regression model using the transformed price
 transformed_model <- lm(transformed_price ~ ., data = train_df_linear)
 
+summary(transformed_model)
+
 # Predict prices for training and test data using the transformed model
 predicted_train_transformed <- predict(transformed_model, newdata = train_df_linear)
 predicted_test_transformed <- predict(transformed_model, newdata = test_df_linear)
 
-# Back-transform the predicted prices to original scale
-if (optimal_lambda != 0) {
-  predicted_train <- (predicted_train_transformed * optimal_lambda + 1)^(1 / optimal_lambda)
-  predicted_test <- (predicted_test_transformed * optimal_lambda + 1)^(1 / optimal_lambda)
-} else {
-  predicted_train <- exp(predicted_train_transformed)
-  predicted_test <- exp(predicted_test_transformed)
-}
+# Calculate other metrics for training and test data
+metrics_train <- calculate_metrics(transformed_price, predicted_train_transformed, optimal_lambda)
+metrics_test <- calculate_metrics(transformed_test_price, predicted_test_transformed, optimal_lambda)
 
-# Calculate SSE for the training and test data
-sse_train <- sum((train_df_linear$price - predicted_train)^2)
-sse_test <- sum((test_df_linear$price - predicted_test)^2)
+# Calculate SSE for the training and test data without inverse transformation
+sse_train <- sum((transformed_price - predicted_train_transformed)^2)
+sse_test <- sum((transformed_test_price - predicted_test_transformed)^2)
 
-# Calculate SST for test data
-sst_test <- sum((test_df_linear$price - mean(test_df_linear$price))^2)
+# Calculate R-squared for training and test data without inverse transformation
+sst_train <- sum((transformed_price - mean(transformed_price))^2)
+sst_test <- sum((transformed_test_price - mean(transformed_test_price))^2)
 
-# Calculate R-squared for training and test data
-r_squared_train <- summary(transformed_model)$r.squared
+r_squared_train <- 1 - (sse_train / sst_train)
 r_squared_test <- 1 - (sse_test / sst_test)
-
-# Calculate RMSE for training and test data
-rmse_train <- sqrt(sse_train / nrow(train_df_linear))
-rmse_test <- sqrt(sse_test / nrow(test_df_linear))
-
-# Calculate MAE for training and test data
-mae_train <- mean(abs(train_df_linear$price - predicted_train))
-mae_test <- mean(abs(test_df_linear$price - predicted_test))
 
 # Create a dataframe to store the results
 df_results <- rbind(df_results, data.frame(
   Model = "Transformed Model",
-  SSE_train = sse_train,
-  SSE_test = sse_test,
+  SSE_train = metrics_train$sse,
+  SSE_test = metrics_test$sse,
   R_squared_train = r_squared_train,
   R_squared_test = r_squared_test,
-  RMSE_train = rmse_train,
-  RMSE_test = rmse_test,
-  MAE_train = mae_train,
-  MAE_test = mae_test
+  RMSE_train = metrics_train$rmse,
+  RMSE_test = metrics_test$rmse,
+  MAE_train = metrics_train$mae,
+  MAE_test = metrics_test$mae
 ))
 
 # View the updated model results
