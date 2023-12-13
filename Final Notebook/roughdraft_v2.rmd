@@ -1,0 +1,320 @@
+---
+title: "EXT CSCI E-106 Model Data Class Group Project Template"
+author: "Charles Atchison"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    fig_caption: true
+    css: "extra_html_files/style.css"
+    includes:
+      before_body: extra_html_files/header.html
+      after_body: extra_html_files/copyright.html
+---
+## 1. Load and Review the Dataset
+### 1.1 Data Loading
+```{r setup, include=FALSE}
+# List of required packages, including 'here'
+required_packages <- c(
+  "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
+  "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics", "kableExtra",
+  "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom"
+)
+
+# Establish CRAN for package installs
+options(repos = c(CRAN = "https://ftp.osuosl.org/pub/cran/")) # Set the CRAN mirror
+
+# Check if each package is installed; if not, install it
+for (pkg in required_packages) {
+  if (!(pkg %in% installed.packages()[,"Package"])) {
+    install.packages(pkg, dependencies = TRUE)
+  }
+}
+
+# Load all the packages
+lapply(required_packages, library, character.only = TRUE)
+
+# Build the full path to the directory containing the Rmd file
+rmd_dir <- dirname(here())
+
+# Navigate up one directory and then to the CSV data file
+csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
+
+json_filepath <- file.path(rmd_dir, "HomeValueForecaster/Final Notebook", "model_parameters.json")
+
+# Read the CSV file into a data frame
+df <- read.csv(csv_file)
+
+# Function to manually update the JSON file with model parameters
+update_model_json <- function(model_name, features, filepath) {
+  # Read existing parameters if the file exists, or initialize an empty list
+  model_params <- if (file.exists(filepath)) {
+                    fromJSON(filepath)
+                  } else {
+                    list()
+                  }
+  # Update the parameters for the specified model
+  model_params[[model_name]] <- features
+  # Write the updated parameters back to the JSON file
+  write_json(model_params, filepath)
+}
+
+# Initialize the figure counter
+fig_counter <- 0
+table_counter <- 0
+
+# Custom function to generate figure captions with automatic numbering
+generate_figure_caption <- function(caption, section) {
+  fig_counter <<- fig_counter + 1
+  paste0("Figure ", section, ".", fig_counter, " ", caption)
+}
+
+# Custom function to generate figure captions with automatic numbering
+generate_table_caption <- function(caption, section) {
+  table_counter <<- table_counter + 1
+  paste0("Table ", section, ".", table_counter, " ", caption)
+}
+```
+
+### 1.2 Initial Data Inspection
+
+### Dataset Overview and Detailed Description
+The King County house sales dataset is a comprehensive collection of 21,613 observations, each representing a unique house sale. The dataset encompasses a variety of features that describe different aspects of the houses sold. Below is a detailed description of each variable in the dataset:
+
+```{r data_description, echo = FALSE, include = TRUE}
+# Create a data frame for the table
+data_description <- data.frame(
+  Variable = c(
+    'id', 'date', 'price', 'bedrooms', 'bathrooms', 'sqft_living', 'sqft_lot',
+    'floors', 'waterfront', 'view', 'condition', 'grade', 'sqft_above',
+    'sqft_basement', 'yr_built', 'yr_renovated', 'zipcode', 'lat',
+    'long', 'sqft_living15', 'sqft_lot15'
+  ),
+  Description = c(
+    'Unique ID for each home sold (not used as a predictor)',
+    'Date of the home sale',
+    'Price of each home sold',
+    'Number of bedrooms',
+    'Number of bathrooms, ".5" accounts for a bathroom with a toilet but no shower',
+    'Square footage of the apartment interior living space',
+    'Square footage of the land space',
+    'Number of floors',
+    'A dummy variable for whether the apartment was overlooking the waterfront or not',
+    'An index from 0 to 4 of how good the view of the property was',
+    'An index from 1 to 5 on the condition of the apartment',
+    'An index from 1 to 13 about building construction and design quality',
+    'The square footage of the interior housing space above ground level',
+    'The square footage of the interior housing space below ground level',
+    'The year the house was initially built',
+    'The year of the house’s last renovation',
+    'The zipcode area the house is in',
+    'Latitude coordinate',
+    'Longitude coordinate',
+    'The square footage of interior housing living space for the nearest 15 neighbors',
+    'The square footage of the land lots of the nearest 15 neighbors'
+  )
+)
+
+# Create the table with kable
+data_description_table <- kable(
+  data_description,
+  format = "html",
+  caption = generate_figure_caption(caption = "Data Description", section = 1)
+) %>%
+  kable_styling(full_width = TRUE) %>%
+  column_spec(1, bold = TRUE)
+
+# Print the table
+data_description_table
+
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+### 1.3 Data Summary
+
+The dataset contains housing information for a total of 21,613 houses. The prices of these houses range from the minimum price of $0 to a maximum of $9.9 million. On average, the houses in this dataset have a price of approximately $540,000. The median price, which represents the middle value when all prices are arranged in ascending order, is $450,000. The most common price range falls within the first quartile, where houses have prices around $321,000 to $645,000. The dataset also includes information on various other factors, such as the number of bedrooms, bathrooms, square footage of living space, lot size, and more, all of which can impact house prices. Understanding the distribution and characteristics of house prices in this dataset is essential for any analysis or modeling task related to real estate.
+
+## 2. Create Train and Test Datasets
+
+```{r data_transformation}
+# Data Preprocessing and Transformation
+set.seed(1023)  # Setting a seed for reproducibility
+split_index <- sample(1:nrow(df), size = 0.7 * nrow(df))
+train_df <- df[split_index, ]
+test_df <- df[-split_index, ]
+
+# Remove non-numeric characters from the 'price' column and convert it to numeric
+df$price <- as.numeric(str_replace_all(df$price, "[^0-9.]", ""))
+
+# Calculation of Convergence Point: Determine the convergence point for high-value homes
+high_value_threshold <- quantile(df$price, probs = 0.95, na.rm = TRUE)  # Calculate the high-value threshold
+high_value_homes <- df[df$price >= high_value_threshold, ]  # Select high-value homes
+convergence_point <- c(mean(high_value_homes$lat, na.rm = TRUE), mean(high_value_homes$long, na.rm = TRUE))
+
+# Remove non-numeric characters from the 'price' column and convert it to numeric
+train_df$price <- as.numeric(str_replace_all(train_df$price, "[^0-9.]", ""))
+test_df$price <- as.numeric(str_replace_all(test_df$price, "[^0-9.]", ""))
+
+# Data Transformation Function with Distance Binning Option
+transform_data <- function(df, convergence_point, linear_model) {
+  # Date Transformation: Convert the 'date' column to a Date object if present
+  if ("date" %in% colnames(df)) {
+    df$date <- as.Date(substr(as.character(df$date), 1, 8), format="%Y%m%d")
+    # Date-Time Feature Engineering: Extract various date-related features
+    df$year_sold <- lubridate::year(df$date)
+    df$month_sold <- lubridate::month(df$date)
+    df$day_sold <- lubridate::day(df$date)
+    df$season <- factor(lubridate::quarter(df$date), labels = c("Winter", "Spring", "Summer", "Fall"))
+    df$week_of_year <- lubridate::week(df$date)
+    df$day_of_year <- lubridate::yday(df$date)
+  }
+  # Creating Dummy Variables: Convert categorical variables into dummy variables
+  df <- df %>%
+    mutate(zipcode = as.factor(zipcode),
+           waterfront = as.factor(waterfront),
+           view = as.factor(view),
+           condition = as.factor(condition),
+           grade = as.numeric(grade),
+           grade = case_when(
+             grade %in% 1:3 ~ "Below_Average",
+             grade %in% 4:10 ~ "Average",
+             grade %in% 11:13 ~ "Above_Average")) %>%
+    dummy_cols(select_columns = c('zipcode', 'view', 'condition', 'grade', 'waterfront', 'season'))
+  # Remove last dummy variables to avoid multicollinearity
+  if (linear_model) {
+    df <- df[, !(names(df) %in% c("zipcode_98199", "view_0", "condition_1", "grade_13", "season_Winter", "waterfront_1"))]
+  }
+  # Haversine Distance Function: Calculate the distance between two points on Earth's surface
+  haversine_distance <- function(lat1, long1, lat2, long2) {
+    R <- 6371  # Earth radius in kilometers
+    delta_lat <- (lat2 - lat1) * pi / 180
+    delta_long <- (long2 - long1) * pi / 180
+    a <- sin(delta_lat/2)^2 + cos(lat1 * pi / 180) * cos(lat2 * pi / 180) * sin(delta_long/2)^2
+    c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+    d <- R * c  # Calculate the haversine distance
+    return(d)
+  }
+  # Calculate Haversine Distance
+  df$distance_to_convergence <- mapply(haversine_distance, df$lat, df$long,
+                                       MoreArgs = list(lat2 = convergence_point[1], long2 = convergence_point[2]))
+  # Remove columns that are no longer needed
+  df <- df[, !(names(df) %in% c("id", "date", "zipcode", "view", "condition", "grade", "waterfront", "season"))]
+  return(df)
+}
+# Applying the transformation function to training and test sets
+train_df_linear <- transform_data(train_df, convergence_point, linear_model = TRUE)  # Transform the training data for linear models
+test_df_linear <- transform_data(test_df, convergence_point, linear_model = TRUE)    # Transform the test data for linear models
+train_df_non_linear <- transform_data(train_df, convergence_point, linear_model = FALSE)  # Transform the training data
+test_df_non_linear <- transform_data(test_df, convergence_point, linear_model = FALSE)    # Transform the test data
+
+# Set this to TRUE to update all the json model_parameters that are stored the JSON
+# Check if the update_model_parameters is TRUE or not
+update_model_parameters <- FALSE
+
+# This updates the json with the parameters that were obtained from the intensive process of running
+update_model_json <- function(model_name, features, filepath) {
+  model_params <- if (file.exists(filepath)) {
+                    fromJSON(filepath)
+                  } else {
+                    list()
+                  }
+  model_params[[model_name]] <- features
+  write_json(model_params, filepath)
+}
+```
+
+### 2.1 Data Cleaning and Transformation
+
+The data preprocessing and transformation phase was crucial to prepare the dataset for accurate predictive analysis. This section outlines the key steps taken:
+
+#### 2.1.1 Exclusion of Non-Predictive Variables
+
+**Exclusion of Non-Predictive Variables**: The dataset contained certain variables that were non-predictive in nature and therefore not useful for our regression model. Specifically, the `id` variable, serving as a unique identifier for each house sale, was removed to prevent it from influencing house price predictions. However, `lat` (latitude) and `long` (longitude) were retained for their potential role in calculating geographical distances, which could impact house prices.
+
+#### 2.1.2 Transformation of Data Types
+
+**Transformation of Data Types**: To ensure consistency and suitability for modeling, several variables underwent data type transformation. Notably, the `date` variable, initially in string format, was converted into a numeric format to facilitate its incorporation into statistical models. Additionally, variables like `price`, `sqft_living`, `sqft_lot`, and others were converted to numeric formats.
+
+#### 2.1.3 Creation of Dummy Variables for Categorical Data
+
+**Creation of Dummy Variables for Categorical Data**: Categorical variables such as `waterfront`, `view`, `condition`, and `grade` were transformed into dummy variables. This transformation was essential for regression analysis, as it enabled the inclusion of non-numeric variables in the model. The process involved converting these categorical variables into binary variables (0 or 1). This was particularly important for variables like `waterfront`, which is inherently binary, and for ordinal variables like `view` and `condition`, which possess an intrinsic order but needed numerical representation for modeling.
+
+#### 2.1.4 Handling Special Cases in Variables
+
+**Handling Special Cases in Variables**: Variables like `bathrooms`, which could have values like "0.5" to represent bathrooms with a toilet but no shower, were retained in their original form. These nuanced representations were preserved, as they carried important information about the characteristics of the houses.
+
+#### 2.1.5 Grouping and Clustering of Variables
+
+**Grouping and Clustering of Variables**: The `zipcode` variable underwent transformation by extracting the first three digits. This step reduced the number of dummy variables, preventing model complexity while still capturing geographical influences on house prices. Additionally, the `grade` variable was clustered into broader categories to simplify the model and focus on significant differences in construction and design quality.
+
+#### 2.1.6 Haversine Distance Calculation
+
+**Haversine Distance Calculation**: A critical step was the calculation of Haversine distances. This involved creating a function to calculate the distance between two geographical points represented by latitude and longitude coordinates. The calculated `haversine_distance` was pivotal for understanding spatial relationships and proximity to key locations that might affect house prices.
+
+#### 2.1.7 Calculation of Convergence Point
+
+**Calculation of Convergence Point**: A 'convergence point' was identified within the dataset, derived from houses with the highest values. This convergence point served as a reference to calculate the distance of each property from this central high-value location, potentially indicating a desirable area. Importantly, this step was executed on the training set alone to ensure the model accounted for locational desirability without data leakage.
+
+### 2.2 Training Data Header
+
+```{r view_head_data, echo = FALSE, include = TRUE, results = 'asis'}
+# Specify the height for the scrollable div
+table_height <- "400px"
+
+# Create a scrollable div and place the table inside it
+cat(sprintf('<div style="overflow-y: scroll; max-height: %s;">', table_height))
+# Print the table with a caption using the custom function
+kable(
+  head(train_df_linear),
+  caption = generate_table_caption("Data Header", section = 2),
+  format = "html"
+)
+cat('</div>')
+```
+
+## 3. Data Preprocessing
+### 3.1 Categorical Variable Handling
+### 3.2 Dropping Unnecessary Variables
+### 3.3 Missing Data Handling
+
+## 4. Build a Regression Model
+### 4.1 Model Building
+### 4.2 Model Evaluation
+
+## 5. Data Exploration and Visualization
+### 5.1 Scatter Plots
+### 5.2 Correlation Matrix
+### 5.3 Relationship Analysis
+
+## 6. Stepwise Model Selection
+### 6.1 Stepwise Methodology
+### 6.2 Best Linear Model 1
+### 6.3 Best Linear Model 2
+### 6.4 Model Comparison
+
+## 7. Model Assumption Checks
+### 7.1 Linearity Assumption
+### 7.2 Normality of Residuals
+### 7.3 Homoscedasticity (Constant Variance)
+
+## 8. Addressing Heteroscedasticity and Multicollinearity
+### 8.1 Detection of Heteroscedasticity
+### 8.2 Remedial Measures for Heteroscedasticity
+### 8.3 Detection of Multicollinearity
+### 8.4 Remedial Methods for Multicollinearity
+
+## 9. Alternative Models
+### 9.1 Regression Tree Model
+### 9.2 Neural Network Model
+### 9.3 Support Vector Machine (SVM) Model
+### 9.4 Logistic Regression (if applicable)
+
+## 10. Model Evaluation on Test Data
+### 10.1 Test Data Performance Metrics
+### 10.2 Model Comparison on Test Data
+
+## 11. Primary and Benchmark Models
+### 11.1 Selection of Primary Model
+### 11.2 Benchmark Model Identification

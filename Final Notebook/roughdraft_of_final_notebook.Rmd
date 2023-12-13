@@ -203,13 +203,16 @@ train_df <- df[split_index, ]
 test_df <- df[-split_index, ]
 
 # Remove non-numeric characters from the 'price' column and convert it to numeric
-train_df$price <- as.numeric(str_replace_all(train_df$price, "[^0-9.]", ""))
-test_df$price <- as.numeric(str_replace_all(test_df$price, "[^0-9.]", ""))
+df$price <- as.numeric(str_replace_all(df$price, "[^0-9.]", ""))
 
 # Calculation of Convergence Point: Determine the convergence point for high-value homes
-high_value_threshold <- quantile(train_df$price, probs = 0.90, na.rm = TRUE)  # Calculate the high-value threshold
-high_value_homes <- train_df[train_df$price >= high_value_threshold, ]  # Select high-value homes
-convergence_point <- c(mean(high_value_homes$lat, na.rm = TRUE), mean(high_value_homes$long, na.rm = TRUE))  # Calculate the convergence point
+high_value_threshold <- quantile(df$price, probs = 0.95, na.rm = TRUE)  # Calculate the high-value threshold
+high_value_homes <- df[df$price >= high_value_threshold, ]  # Select high-value homes
+convergence_point <- c(mean(high_value_homes$lat, na.rm = TRUE), mean(high_value_homes$long, na.rm = TRUE))
+
+# Remove non-numeric characters from the 'price' column and convert it to numeric
+train_df$price <- as.numeric(str_replace_all(train_df$price, "[^0-9.]", ""))
+test_df$price <- as.numeric(str_replace_all(test_df$price, "[^0-9.]", ""))
 
 # Data Transformation Function with Distance Binning Option
 transform_data <- function(df, convergence_point, linear_model) {
@@ -1477,7 +1480,118 @@ As we implement these adjustments, we will:
 
 Through these methodical steps, we aim to enhance the reliability and validity of our model's predictive power, ensuring that it not only meets statistical assumptions but also aligns with empirical data.
 
-### Diagnostics for Homoscedasticity, Normality of Errors and Constancy of Error Variances
+### Outlier Detection
+
+To further investigate nonlinearity, constant variance of errors, and outliers, we examine the data points with potentially high influence.
+
+#### Residuals vs Leverage Plot
+
+We use the `ols_plot_resid_lev` function to create a plot for detecting outliers and observations with high leverage.
+
+```{r residuals_vs_leverage_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
+
+# Output figure and caption
+cat(generate_figure_caption("OLS Outlier and Leverage Diagnostics Linear Model"))
+# Plot the residuals vs leverage plot in the first row
+ols_plot_resid_lev(linear_model_initial)
+```
+
+- **Observation**: Look for observations that have high leverage (extreme values on the right side of the plot) and potentially strong influence on the model.
+
+#### Residuals vs Fitted Plot
+
+We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect non-linearity, constant variances, and outliers in residuals.
+
+```{r residuals_vs_fitted_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
+# Output figure and caption
+cat(generate_figure_caption("Deleted Studentized Resid. vs Pred. Linear Model"))
+
+ols_plot_resid_stud_fit(linear_model_initial)
+```
+
+- **Observation**:
+
+#### Cook's Distance
+
+We calculate Cook's distance for each observation to identify influential data points.
+
+```{r cooks_distance_calculation, echo=FALSE, include = TRUE, results = 'asis'}
+# Calculate Cook's distance for each observation
+cooksd <- cooks.distance(linear_model_initial)
+
+# Output figure and caption
+cat(generate_figure_caption("OLS Cooks Distance Plot for Linear Model"))
+
+# Create a plot of Cook's distance
+plot(cooksd, type = "h", main = "Cook's Distance", ylab = "Cook's Distance", xlab = "Observation Index")
+abline(h = 0.04, col = "red", lwd = 2) # .04 is a common threshold for Cook's distance
+
+# Define the threshold for Cook's distance
+threshold <- 0.04
+
+# Identify observations where Cook's distance exceeds the threshold
+high_cooksd <- which(cooksd > threshold)
+
+# Add labels to the points above the threshold
+text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
+```
+
+- **Observation**:
+
+#### Filtering Outliers
+
+We filter the data points with Cook's distance >= 0.04, which is a reasonable threshold for identifying influential data points.
+
+```{r outlier_filtering, echo=FALSE, include = TRUE}
+# Define the threshold for Cook's distance, opting for slightly lower than .04 as it benefits the model performance to do a little bit lower
+threshold <- 0.04
+
+# Identify the indices of influential observations
+influential_obs <- which(cooksd > threshold)
+
+print(influential_obs)
+```
+
+
+```{r outlier_removal}
+# Remove outliers from both datasets
+train_df_linear_outliers <- train_df_linear[-influential_obs, ]
+train_df_non_linear_outliers <- train_df_non_linear[-influential_obs, ]
+```
+
+### Diagnostics for Multicollinearity, Homoscedasticity, Normality of Errors and Constancy of Error Variances
+
+### Examining Multicollinearity
+
+```{r vif}
+vif_values <- vif(linear_model_initial)
+
+# Set the VIF threshold (e.g., 10)
+vif_threshold <- 10
+
+# Function to remove high VIF columns from a dataset
+remove_high_vif_columns <- function(df, threshold) {
+  linear_model <- lm(price ~ ., data = df)
+  vif_values <- vif(linear_model)
+  high_vif_columns <- names(vif_values[vif_values > threshold])
+  df <- df[, !names(df) %in% high_vif_columns]
+  return(df)
+}
+
+# Remove high VIF columns from the copied training and test datasets
+train_df_linear_vif <- remove_high_vif_columns(train_df_linear, vif_threshold)
+test_df_linear_vif <- remove_high_vif_columns(test_df_linear, vif_threshold)
+
+# Fit a linear regression model to the updated training data
+linear_model_initial_vif <- lm(price ~ ., data = train_df_linear_vif)
+
+# Evaluate the updated linear model on the copied test data
+df_results <- evaluate_model("OLS_linear_VIF_10", linear_model_initial_vif, train_df_linear_vif, test_df_linear_vif, target_var = 'price', df_results)
+
+# Show updated linear model results
+summary(linear_model_initial_vif)
+view_model_results(df_results, caption = "VIF Multicollinearity Removed")
+```
 
 #### Breusch-Pagan Test
 
@@ -1488,10 +1602,57 @@ We will perform the Breusch-Pagan test to examine if the assumption of homosceda
 bp_test_results <- bptest(linear_model_initial, studentize = FALSE)
 
 # Output the results of the Breusch-Pagan test
-print(bp_test_results)
+bp_test_results
 ```
 
 The Breusch-Pagan test results with a p-value significantly lower than the alpha level of 0.05 suggests that we reject the null hypothesis of constant error variances in favor of the alternative hypothesis, indicating the presence of heteroscedasticity in our model residuals.
+
+### Weighted Least Squares
+
+```{r weighted_least_squares, echo = FALSE, include = TRUE, results = 'asis'}
+# Extract absolute residuals from linear_modle_inital as VIF removal reduced our performance
+abs_residuals <- abs(linear_model_initial$residuals)
+
+# Fit a linear regression model to the absolute residuals
+abs_residuals_model <- lm(abs_residuals ~ ., data = train_df_linear_vif[, -1])
+
+# Calculate fitted values from the absolute residuals model
+fitted_values <- abs_residuals_model$fitted.values
+
+# Calculate weights (w1) based on the squared fitted values
+weights <- 1 / (fitted_values^2)
+
+# Fit a weighted linear regression model to the log-transformed price with weights
+weighted_regression_model <- lm(transformed_price ~ ., weights = weights, data = train_df_linear_vif)
+
+# Display the summary of the weighted model
+summary(weighted_regression_model)
+
+# Create diagnostic plots
+par(mfrow=c(2,2))
+cat(generate_figure_caption("Diagnostic Results for WLS"))
+plot(weighted_regression_model)
+par(mfow=c(1,1))
+cat(generate_figure_caption("Boxplot of WLS Residuals"))
+boxplot(weighted_regression_model$residuals)
+```
+
+```{r wls_model_evaluation}
+df_results <- NULL
+
+# Perform Breusch-Pagan test for heteroscedasticity
+bptest(weighted_regression_model, studentize = TRUE)
+
+ei_trains <- transformed_model$residuals
+abs_ei_trans <- abs(ei_trains)
+fit_price_res <- lm(abs_ei_trans ~., data = train_df_lin[, -1])
+#summary(fit_price_res)
+res_fitted_values <- fit_price_res$fitted.values
+w1 <- 1/(res_fitted_values^2)
+
+fit_price_train_trans_w1 <- lm(log(price) ~. ,
+                               weights = w1, data = df_train_linear_out_step_vif)
+```
 
 To further assess the normality of our model's residuals, we will conduct the Anderson-Darling normality test, especially relevant given our large sample size.
 
@@ -1572,7 +1733,7 @@ if (optimal_lambda != 0) {
 }
 
 # Create a linear regression model using the transformed price
-transformed_model <- lm(transformed_price ~ ., data = train_df_linear)
+transformed_model <- lm(transformed_price ~ ., data = dplyr::select(train_df_linear, -price))
 
 summary(transformed_model)
 
@@ -1627,212 +1788,31 @@ plot(transformed_model)
 ```
 
 
-### Outlier Detection
-
-To further investigate nonlinearity, constant variance of errors, and outliers, we examine the data points with potentially high influence.
-
-#### Residuals vs Leverage Plot
-
-We use the `ols_plot_resid_lev` function to create a plot for detecting outliers and observations with high leverage.
-
-```{r residuals_vs_leverage_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
-
-# Output figure and caption
-cat(generate_figure_caption("OLS Outlier and Leverage Diagnostics Linear Model"))
-# Plot the residuals vs leverage plot in the first row
-ols_plot_resid_lev(linear_model_initial)
-```
-
-- **Observation**: Look for observations that have high leverage (extreme values on the right side of the plot) and potentially strong influence on the model.
-
-#### Residuals vs Fitted Plot
-
-We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect non-linearity, constant variances, and outliers in residuals.
-
-```{r residuals_vs_fitted_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
-# Output figure and caption
-cat(generate_figure_caption("Deleted Studentized Resid. vs Pred. Linear Model"))
-
-ols_plot_resid_stud_fit(linear_model_initial)
-```
-
-- **Observation**:
-
-#### Cook's Distance
-
-We calculate Cook's distance for each observation to identify influential data points.
-
-```{r cooks_distance_calculation, echo=FALSE, include = TRUE, results = 'asis'}
-# Calculate Cook's distance for each observation
-cooksd <- cooks.distance(linear_model_initial)
-
-# Output figure and caption
-cat(generate_figure_caption("OLS Cooks Distance Plot for Linear Model"))
-
-# Create a plot of Cook's distance
-plot(cooksd, type = "h", main = "Cook's Distance", ylab = "Cook's Distance", xlab = "Observation Index")
-abline(h = 0.04, col = "red", lwd = 2) # .04 is a common threshold for Cook's distance
-
-# Define the threshold for Cook's distance
-threshold <- 0.04
-
-# Identify observations where Cook's distance exceeds the threshold
-high_cooksd <- which(cooksd > threshold)
-
-# Add labels to the points above the threshold
-text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
-```
-
-- **Observation**:
-
-#### Filtering Outliers
-
-We filter the data points with Cook's distance >= 0.04, which is a reasonable threshold for identifying influential data points.
-
-```{r outlier_filtering, echo=FALSE, include = TRUE}
-# Define the threshold for Cook's distance
-threshold <- 0.04
-
-# Identify the indices of influential observations
-influential_obs <- which(cooksd > threshold)
-
-print(influential_obs)
-```
-
-
-```{r outlier_removal}
-# Remove outliers from both datasets
-train_df_linear_outliers <- train_df_linear[-influential_obs, ]
-train_df_non_linear_outliers <- train_df_non_linear[-influential_obs, ]
-```
-
-### Examining Multicollinearity
-
-```{r vif}
-vif_values <- vif(linear_model_initial)
-
-# Create copies of the training and test datasets
-train_df_linear_copy <- train_df_linear
-test_df_linear_copy <- test_df_linear
-
-# Set the VIF threshold (e.g., 10)
-vif_threshold <- 10
-
-# Function to remove high VIF columns from a dataset
-remove_high_vif_columns <- function(df, threshold) {
-  linear_model <- lm(price ~ ., data = df)
-  vif_values <- vif(linear_model)
-  high_vif_columns <- names(vif_values[vif_values > threshold])
-  df <- df[, !names(df) %in% high_vif_columns]
-  return(df)
-}
-
-# Remove high VIF columns from the copied training and test datasets
-train_df_linear_copy <- remove_high_vif_columns(train_df_linear_copy, vif_threshold)
-test_df_linear_copy <- remove_high_vif_columns(test_df_linear_copy, vif_threshold)
-
-# Fit a linear regression model to the updated training data
-linear_model_initial_vif <- lm(price ~ ., data = train_df_linear_copy)
-
-# Evaluate the updated linear model on the copied test data
-df_results <- evaluate_model("OLS_linear_VIF_10", linear_model_initial_vif, train_df_linear_copy, test_df_linear_copy, target_var = 'price', df_results)
-
-# Show updated linear model results
-summary(linear_model_initial_vif)
-view_model_results(df_results, caption = "VIF Multicollinearity Removed")
-```
 
 #### Columns with High VIF Values
 
 ```{r output_high_vif_values}
-# Create a data frame with the column names and VIF values
+# Filter VIF values above the threshold
+filtered_vif_values <- vif_values[vif_values >= vif_threshold]
+
+# Create a data frame with the column names and filtered VIF values
 vif_data <- data.frame(
-  "Column Name" = c("day_of_year", "grade_5", "grade_6", "grade_7", "grade_8", "grade_9", "grade_10", "grade_11", "season_Summer", "season_Fall", "distance_to_convergence"),
-  "VIF Value" = c(18.74, 20.76, 166.84, 454.88, 371.93, 195.81, 88.27, 33.39, 11.73, 21.83, 20.05)
+  "Column Name" = names(filtered_vif_values),
+  "VIF Value" = filtered_vif_values
 )
 
 # Create a figure caption using the custom function
-caption <- generate_figure_caption("Variable Inflation Factors (VIF) Table")
+caption <- generate_figure_caption("Variable Inflation Factors (VIF) Table (Above Threshold)")
 
-# Generate the kable table
-kable(vif_data, format = "html", caption = caption)
-
+# Generate the kable table without row names
+kable(vif_data, format = "html", caption = caption, row.names = FALSE)
 ```
 
 In our linear regression analysis, we have identified several columns with high Variance Inflation Factor (VIF) values exceeding the threshold of 10. VIF is a measure that quantifies the degree of multicollinearity between predictor variables in a regression model. High VIF values indicate that certain predictor variables are highly correlated with others, leading to multicollinearity issues. To build a more reliable and interpretable linear regression model, we are dropping these columns with high VIF values. By doing so, we aim to reduce the multicollinearity that can lead to unstable coefficient estimates and make it challenging to interpret the individual impact of each predictor variable on the target variable (price).
 
 Despite the removal of these high VIF columns, it's worth noting that the model's performance has decreased slightly. The adjusted model, referred to as "OLS_linear_VIF_10," now exhibits a higher Sum of Squared Errors (SSE) for both the training and test datasets, indicating a decrease in predictive accuracy compared to the initial model. The R-squared values have also decreased slightly for both the training and test datasets. While the removal of highly correlated predictors was intended to improve model performance, it appears that in this case, it has led to a reduction in predictive accuracy. This outcome highlights the complexity of model building and the need for careful consideration of which variables to retain or remove to achieve the best model performance. Despite the decrease in performance, the adjusted model may still offer advantages in terms of interpretability and reduced multicollinearity.
 
-### Weighted Least Squares
 
-```{r weighted_least_squares, echo = FALSE, include = TRUE, results = 'asis'}
-# Extract absolute residuals from linear_modle_inital as VIF removal reduced our performance
-abs_residuals <- abs(linear_model_initial$residuals)
-
-# Fit a linear regression model to the absolute residuals
-abs_residuals_model <- lm(abs_residuals ~ ., data = train_df_linear[, -1])
-
-# Calculate fitted values from the absolute residuals model
-fitted_values <- abs_residuals_model$fitted.values
-
-# Calculate weights (w1) based on the squared fitted values
-weights <- 1 / (fitted_values^2)
-
-# Fit a weighted linear regression model to the log-transformed price with weights
-weighted_regression_model <- lm(log(price) ~ ., weights = weights, data = train_df_linear)
-
-# Display the summary of the weighted model
-summary(weighted_regression_model)
-
-# Create diagnostic plots
-par(mfrow=c(2,2))
-cat(generate_figure_caption("Diagnostic Results for WLS"))
-plot(weighted_regression_model)
-par(mfow=c(1,1))
-cat(generate_figure_caption("Boxplot of WLS Residuals"))
-boxplot(weighted_regression_model$residuals)
-```
-
-```{r wls_model_evaluation}
-# Perform Breusch-Pagan test for heteroscedasticity
-bptest(weighted_regression_model, studentize = TRUE)
-
-# Calculate predictions for training and test data using the weighted model
-predicted_train_transformed_wls <- predict(weighted_regression_model, newdata = train_df_linear)
-predicted_test_transformed_wls <- predict(weighted_regression_model, newdata = test_df_linear)
-
-# Back-transform the predicted prices to the original scale
-predicted_train_wls <- exp(predicted_train_transformed_wls)
-predicted_test_wls <- exp(predicted_test_transformed_wls)  # Back-transform for test data
-
-# Calculate SSE for the training data
-sse_train_wls <- sum((train_df_linear$price - predicted_train_wls)^2)
-
-# Calculate SSE for the test data
-sse_test_wls <- sum((test_df_linear$price - predicted_test_wls)^2)
-
-# Calculate R-squared for training data
-r_squared_train_wls <- 1 - sse_train_wls / sum((train_df_linear$price - mean(train_df_linear$price))^2)
-
-# Calculate R-squared for test data
-r_squared_test_wls <- 1 - sse_test_wls / sum((test_df_linear$price - mean(test_df_linear$price))^2)
-
-# Create a dataframe to store the results
-df_results <- rbind(df_results, data.frame(
-  Model = "WLS_linear",
-  SSE_train = sse_train_wls,
-  SSE_test = sse_test_wls,
-  R_squared_train = r_squared_train_wls,
-  R_squared_test = r_squared_test_wls,
-  RMSE_train = sqrt(sse_train_wls / nrow(train_df_linear)),
-  RMSE_test = sqrt(sse_test_wls / nrow(test_df_linear)),
-  MAE_train = mean(abs(train_df_linear$price - predicted_train_wls)),
-  MAE_test = mean(abs(test_df_linear$price - predicted_test_wls))
-))
-
-# View the updated model results
-view_model_results(df_results, caption = "Weighted Least Squares Model")
-```
 
 #### Insights on WLS Linear Model
 
