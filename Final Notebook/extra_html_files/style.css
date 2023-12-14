@@ -53,6 +53,19 @@ h2 {
     margin-left: 1em;
     font-size: 1em;
 }
+.section.level5 {
+    color: #f6bb27;
+    padding-top: 1em;
+    margin-left: 1em;
+    font-size: 1em;
+}
+
+.section.level5 p {
+    color: #ffffff;
+    margin-top: 1em;
+    margin-left: 1em;
+    font-size: 1em;
+}
 
 .main-content {
     margin-left: 0.5em;

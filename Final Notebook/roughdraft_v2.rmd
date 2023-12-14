@@ -12,7 +12,7 @@ output:
 ---
 ## 1. Load and Review the Dataset
 ### 1.1 Data Loading
-```{r setup, echo = TRUE, include=FALSE}
+```{r setup, echo = TRUE, include = TRUE, results = 'hide'}
 # List of required packages, including 'here'
 required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
@@ -31,8 +31,10 @@ for (pkg in required_packages) {
   }
 }
 
-# Load all the packages
-lapply(required_packages, library, character.only = TRUE)
+# Load all the packages without displaying masking warnings
+lapply(required_packages, function(pkg) {
+  suppressMessages(library(pkg, character.only = TRUE))
+})
 
 # Build the full path to the directory containing the Rmd file
 rmd_dir <- dirname(here())
@@ -126,15 +128,19 @@ data_description_table <- kable(
 
 # Print the table
 data_description_table
-
-# End of section so set both table and figure to 0
-fig_counter <- 0
-table_counter <- 0
 ```
 
 ### 1.3 Data Summary
 
 The dataset contains housing information for a total of 21,613 houses. The prices of these houses range from the minimum price of $0 to a maximum of $9.9 million. On average, the houses in this dataset have a price of approximately $540,000. The median price, which represents the middle value when all prices are arranged in ascending order, is $450,000. The most common price range falls within the first quartile, where houses have prices around $321,000 to $645,000. The dataset also includes information on various other factors, such as the number of bedrooms, bathrooms, square footage of living space, lot size, and more, all of which can impact house prices. Understanding the distribution and characteristics of house prices in this dataset is essential for any analysis or modeling task related to real estate.
+
+```{r reset_section1_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
 
 ## 2. Create Train and Test Datasets
 
@@ -274,31 +280,1461 @@ kable(
 cat('</div>')
 ```
 
+```{r reset_section2_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
+
 ## 3. Data Preprocessing
-### 3.1 Categorical Variable Handling
-### 3.2 Dropping Unnecessary Variables
-### 3.3 Missing Data Handling
+
+### 3.1 Exclusion of Non-Predictive Variables
+
+#### 3.1.1 Exclusion of `id` Variable
+
+- The `id` variable, serving as a unique identifier for each house sale, was removed from the dataset. This exclusion aimed to prevent it from influencing house price predictions.
+
+#### 3.1.2 Retention of Geographic Variables
+
+- Unlike other non-predictive variables, `lat` (latitude) and `long` (longitude) were retained in the dataset. These geographic coordinates were preserved due to their potential role in calculating geographical distances, which could significantly impact house prices. While not directly predictive, they provide valuable spatial information.
+
+### 3.2 Transformation of Data Types
+
+#### 3.2.1 Conversion of `date` Variable
+
+- The `date` variable, initially in string format, underwent a critical transformation. It was converted into a numeric format, allowing for easier incorporation into statistical models. Numeric representations of dates are more amenable to various types of analyses, including regression.
+
+#### 3.2.2 Conversion of Numeric Variables
+
+- Several variables, including `price`, `sqft_living`, `sqft_lot`, and others, underwent data type transformation. These variables were converted to numeric formats to ensure consistency and suitability for modeling purposes. Numeric representations are essential for performing mathematical operations and statistical modeling.
+
+### 3.3 Creation of Dummy Variables for Categorical Data
+
+#### 3.3.1 Transformation of Categorical Variables
+
+- Categorical variables such as `waterfront`, `view`, `condition`, and `grade` were transformed into dummy variables. This transformation is pivotal for regression analysis, as it allows these non-numeric variables to be effectively included in the model.
+
+#### 3.3.2 Binary Representation
+
+- The process of creating dummy variables involved converting categorical variables into a series of binary variables (`0` or `1`). This binary representation is particularly important for variables like `waterfront`, which is a binary indicator itself, and for ordinal variables like `view` and `condition`. This transformation preserves the inherent order of these variables while making them suitable for numerical modeling.
+
+### 3.4 Handling Special Cases in Variables
+
+#### 3.4.1 Treatment of `bathrooms` Variable
+
+- The `bathrooms` variable presented a unique challenge. It contains values like `"0.5"` that represent bathrooms with a toilet but no shower. In the code block, you can observe that we made a conscious decision not to apply any transformation to this variable. By doing so, we retained the nuanced details within the data. For instance, these values indicate specific house characteristics that can influence its price, such as the presence of a half-bathroom.
+
+### 3.5 Grouping and Clustering of Variables
+
+#### 3.5.1 Transformation of `zipcode` Variable
+
+- In the prior code block, we demonstrate the transformation of the `zipcode` variable. This transformation involves extracting the first three digits of the zip code. The purpose of this transformation is twofold: it helps in reducing the number of dummy variables, preventing the model from becoming overly complex, while still retaining the essential geographical information. It allows us to capture the broader regional influences on house prices without adding excessive dimensions to the model.
+
+#### 3.5.2 Clustering of `grade` Variable
+
+- This transformation simplifies the variable into broader categories. By doing so, we aim to enhance the interpretability of the model while focusing on the significant differences in construction and design quality among houses. The model can now capture the essence of the grade variable without getting lost in its finer details.
+
+### 3.6 Haversine Distance Calculation
+
+#### 3.6.1 Calculation of Haversine Distance
+
+- The prior code block illustrates the calculation of the Haversine distance. This calculation is performed with meticulous precision to incorporate the influence of location. A custom function, `haversine_distance`, is defined and applied to compute distances between geographical points represented by latitude and longitude. This step is critical for the model because it captures the significance of geographical proximity. It helps the model understand the spatial relationships and the impact of proximity to key locations on house prices.
+
+### 3.7 Calculation of Convergence Point
+
+#### 3.7.1 Identification of Convergence Point
+
+- In the prior code block, you'll notice the process of identifying a 'convergence point.' This central reference point is derived from houses with the highest values, essentially high-value homes within the dataset. This convergence point serves as a crucial reference for calculating the distance of each property from this central, high-value location. By doing so, we create a measure of proximity to desirable areas. Importantly, this calculation is meticulously handled in the code to ensure that it doesn't introduce data leakage. It's based solely on the training set, maintaining model integrity and avoiding the incorporation of information from the test set.
+
+```{r reset_section_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
 
 ## 4. Build a Regression Model
-### 4.1 Model Building
-### 4.2 Model Evaluation
+
+### 4.1 Helper Functions for Model Comparison
+
+#### 4.1.1 `add_model_performance` Function
+
+The `add_model_performance` function serves as a crucial tool for evaluating regression models. It takes as input a model object and conducts an evaluation using both training and testing datasets. The function calculates key performance metrics, including Sum of Squared Errors (SSE), R-squared, Root Mean Squared Error (RMSE), and Mean Absolute Error (MAE) for both the training and test datasets. These metrics provide valuable insights into the model's predictive capabilities. Additionally, it offers the flexibility to incorporate the resulting performance metrics into an existing results dataframe or create a new one if none is provided. This function streamlines the evaluation process, making it easier to comprehensively compare and assess different models.
+
+#### 4.1.2 `view_model_results` Function
+
+The `view_model_results` function simplifies the task of displaying model performance metrics in a user-friendly format. Leveraging the `datatable` function, it generates an interactive and visually appealing table for presenting model evaluation results. Users can input a dataframe containing model performance metrics, and this function will produce an informative table with options for adding captions. This feature enhances the communication and visualization of model performance, facilitating informed decision-making when comparing various models.
+
+#### 4.1.3 `extract_and_display_features` Function
+
+The `extract_and_display_features` function emphasizes transparency and interpretability. Given a model object, it extracts and presents the features utilized by the model for making predictions. This transparency aids in understanding which variables influence the model's decisions. By displaying the relevant features, users gain insights into the model's feature selection process, enhancing model interpretability and assisting in feature engineering efforts.
+
+#### 4.1.4 `create_model` Function
+
+The `create_model` function simplifies the creation of linear regression models based on user-defined feature subsets. Users can specify a dataframe containing their data, the target variable, and a list of features they wish to include in the model. The function constructs the model's formula and fits a linear regression model accordingly. This flexibility empowers users to experiment with different feature combinations and observe their impact on model performance, aiding in the model selection process.
+
+#### 4.1.5 `prepare_data` Function
+
+The `prepare_data` function streamlines the data preparation process for model evaluation. It extracts features used in the model, creates training and testing datasets without the target variable, and organizes the data for model evaluation. By automating these steps, this function ensures consistency and accuracy in the data used for model assessment. Users can easily interface with the prepared data, saving time and reducing the risk of errors during the evaluation process.
+
+#### 4.1.6 `evaluate_model` Function
+
+The `evaluate_model` function combines the elements of model evaluation and result aggregation. Given a model, training and testing datasets, and a target variable, it evaluates the model's performance and adds the resulting metrics to a results dataframe. Users can specify a model name for identification purposes, facilitating easy tracking of multiple model evaluations. This function streamlines the process of comparing various models by accumulating their performance metrics in a single dataframe, simplifying the decision-making process when selecting the best model for a given task.
+
+Collectively, these functions provide a comprehensive framework for efficiently evaluating and comparing regression models. They enhance transparency, simplify the evaluation process, and empower users to make informed decisions regarding model selection and feature engineering.
+
+```{r initial_model, echo = TRUE, include = TRUE}
+#' Add Model Performance to Dataframe
+#'
+#' This function evaluates a given regression model using training and testing datasets. It calculates
+#' performance metrics like SSE, R-squared, RMSE, and MAE for both training and test sets, and then adds
+#' these metrics to a provided results dataframe or creates one if not provided. The function ensures
+#' that both training and testing datasets contain the same features used in the model before performing
+#' predictions and calculations.
+#'
+#' @param model_name A string representing the name of the model.
+#' @param model The model object to be evaluated.
+#' @param x_train A dataframe containing the features of the training data.
+#' @param y_train A vector containing the target variable of the training data.
+#' @param x_test A dataframe containing the features of the test data.
+#' @param y_test A vector containing the target variable of the test data.
+#' @param df_results An optional dataframe where model performance metrics will be added (default: NULL).
+#' @return The updated dataframe with the added model performance metrics.
+#'
+#' @examples
+#' linear_model <- lm(price ~ ., data = train_df)
+#' df_results <- add_model_performance("Linear Model", linear_model, x_train, y_train, x_test, y_test)
+#'
+#' # If df_results already exists and you want to add more results:
+#' df_results <- add_model_performance("Another Model", another_model, x_train, y_train, x_test, y_test, df_results)
+#'
+#' @details
+#' The function first extracts the features used in the model and checks if these features are present in
+#' both the training and testing datasets. It then uses the model to predict the target variable on both
+#' datasets and calculates performance metrics. These metrics are added to a dataframe that either exists
+#' or is created within the function. This dataframe can be used for comparing different models' performances.
+#'
+#' It is assumed that the model is correctly specified with the appropriate features and the dataframes
+#' provided to the function align with the model's structure.
+
+add_model_performance <- function(model_name, model, x_train, y_train, x_test, y_test, df_results = NULL) {
+    # Create df_results if not provided
+    if (is.null(df_results)) {
+        df_results <- data.frame(
+            Model = character(),
+            SSE_train = double(),
+            SSE_test = double(),
+            R_squared_train = double(),
+            R_squared_test = double(),
+            RMSE_train = double(),
+            RMSE_test = double(),
+            MAE_train = double(),
+            MAE_test = double(),
+            stringsAsFactors = FALSE
+        )
+    }
+
+    y_hat_train <- predict(model, newdata = x_train)
+    y_hat_test <- predict(model, newdata = x_test)
+
+    # Performance metrics calculation
+    mae_train <- mean(abs(y_train - y_hat_train))
+    mae_test <- mean(abs(y_test - y_hat_test))
+
+    sse_train <- sum((y_train - y_hat_train)^2)
+    sse_test <- sum((y_test - y_hat_test)^2)
+
+    tss_train <- sum((y_train - mean(y_train))^2)
+    tss_test <- sum((y_test - mean(y_test))^2)
+
+    rsq_train <- 1 - (sse_train / tss_train)
+    rsq_test <- 1 - (sse_test / tss_test)
+
+    rmse_train <- sqrt(mean((y_train - y_hat_train)^2))
+    rmse_test <- sqrt(mean((y_test - y_hat_test)^2))
+
+    # Appending results to the dataframe
+    new_row <- data.frame(
+        Model = model_name,
+        SSE_train = sse_train,
+        SSE_test = sse_test,
+        R_squared_train = rsq_train,
+        R_squared_test = rsq_test,
+        RMSE_train = rmse_train,
+        RMSE_test = rmse_test,
+        MAE_train = mae_train,
+        MAE_test = mae_test
+    )
+
+    df_results <- rbind(df_results, new_row)
+
+    # Returning the updated dataframe
+    return(df_results)
+}
+
+
+#' Display Model Results using Datatable
+#'
+#' This function displays a dataframe containing model performance metrics using the `datatable` function.
+#'
+#' @param df_results A dataframe containing model performance metrics.
+#' @param caption Optional caption for the table (default: "Model Comparison").
+#' @return NULL (it displays the table but doesn't return a value).
+
+view_model_results <- function(df_results, caption) {
+  # Identifying numeric columns other than "Model", "R_squared_train", and "R_squared_test"
+  cols_to_round <- setdiff(names(df_results[sapply(df_results, is.numeric)]), c("Model", "R_squared_train", "R_squared_test"))
+
+  # Round these specific columns to 2 decimal places
+  df_results[cols_to_round] <- lapply(df_results[cols_to_round], round, 2)
+
+  # Round R-squared columns to 4 decimal places
+  df_results$R_squared_train <- round(df_results$R_squared_train, 5)
+  df_results$R_squared_test <- round(df_results$R_squared_test, 5)
+
+  # Display the dataframe using datatable
+  datatable(
+    df_results,
+    caption = caption,
+    options = list(
+      paging = FALSE,
+      autoWidth = TRUE,
+      scrollX = TRUE,
+      fixedColumns = list(leftColumns = 1)
+    )
+  )
+}
+
+
+extract_and_display_features <- function(model, full_df, target_var) {
+  features_used <- setdiff(names(coef(model)), "(Intercept)")
+  features_used <- features_used[features_used != "(Intercept)"]
+
+  # Get all the feature names from the full dataset, excluding the target variable
+  all_features <- names(full_df)
+  all_features <- all_features[all_features != target_var]
+
+  # Identify features not used in the model and print if desired
+  # unused_features <- setdiff(all_features, features_used)
+
+  # Return the features that were used as a character vector
+  return(features_used)
+}
+
+# Function to create a linear model based on a subset of features
+create_model <- function(df, target_var, features) {
+  # Construct the formula for lm()
+  formula <- as.formula(paste(target_var, "~", paste(features, collapse = "+")))
+  # Fit the linear model
+  return(lm(formula, data = df))
+}
+
+prepare_data <- function(model, train_df, test_df, target_var) {
+  # Extracting used features from the model
+  used_features <- extract_and_display_features(model, train_df, target_var = target_var)
+
+  # Create x_train and x_test without the target variable
+  x_train <- subset(train_df, select = used_features)
+  x_test <- subset(test_df, select = used_features)
+
+  y_train <- train_df[[target_var]]
+  y_test <- test_df[[target_var]]
+
+  return(list(x_train = x_train, x_test = x_test, y_train = y_train, y_test = y_test))
+}
+
+evaluate_model <- function(model_name, model, train_df, test_df, target_var, df_results) {
+  # Filter data into x and y subsets
+  data <- prepare_data(model, train_df, test_df, target_var = target_var)
+
+  # Adding model performance to the results dataframe
+  df_results <- add_model_performance(
+    model_name = model_name,
+    model = model,
+    x_train = data$x_train,
+    y_train = data$y_train,
+    x_test = data$x_test,
+    y_test = data$y_test,
+    df_results = df_results  # Or pass existing df_results if available
+  )
+
+  return(df_results)
+}
+```
+
+### 4.2 Model Building
+
+```{r build_inital_linear_model}
+# Fit a linear regression model to the training data
+linear_model_initial <- lm(price ~ ., data = train_df_linear)
+
+# Evaluate OLS_linear
+df_results <- evaluate_model("OLS_linear", linear_model_initial, train_df_linear, test_df_linear, target_var = 'price', NULL)
+
+# Add results to the df_results to view and sort later
+view_model_results(df_results, caption = generate_table_caption("OLS Linear Model Table", section = 4))
+```
+
+### 4.3 Model Evaluation
+
+```{r linear_model_evaluation, echo = TRUE, include = TRUE}
+# Show inital linear model results
+summary(linear_model_initial)
+```
+
+#### 4.3.1 Overview of Model Performance
+
+In this section, we provide an in-depth evaluation of the initial linear regression model's performance from a data modeling perspective in the context of predicting house prices.
+
+#### 4.3.2 Model Fit
+
+The model exhibits a respectable fit to the data with an adjusted R-squared value of 0.8174. This metric suggests that approximately 81.74% of the variance in house prices is accounted for by the independent variables included in the model. While this is a strong start, it's important to explore whether there is room for model improvement.
+
+#### 4.3.3 Significant Predictors
+
+Several predictors stand out as statistically significant contributors to the model's predictive power. Notably, variables such as `bedrooms`, `bathrooms`, `sqft_living`, `yr_renovated`, `lat`, `long`, and `view` have coefficients with p-values less than 0.05. These variables have a substantial influence on predicting house prices and are essential components of the model.
+
+#### 4.3.4 Baseline and Intercept
+
+The `(Intercept)` term represents the baseline house price when all other predictors are set to zero. It is crucial in understanding the inherent value of a house. Interpretation of the baseline price helps assess the model's ability to capture the impact of other variables.
+
+#### 4.3.5 Challenges and Missing Coefficients
+
+The model also reveals challenges, such as missing coefficients for some variables (e.g., `sqft_basement`), indicating potential data quality issues. Addressing these gaps is vital to enhance the model's performance and interpretability.
+
+#### 4.3.6 Residual Analysis
+
+Residual analysis indicates that the model's residuals range from -1,415,466 to 4,245,843, suggesting the presence of heteroscedasticity or outliers. Deeper investigation into these issues is necessary to refine the model and ensure its robustness.
+
+#### 4.3.7 Feature Engineering
+
+The model incorporates a wide range of features, including property characteristics, location-based attributes, and temporal variables. These features collectively contribute to its predictive capacity. Ongoing feature engineering efforts should focus on selecting relevant variables and transforming them effectively to improve the model's accuracy.
+
+#### 4.3.8 Model Optimization
+
+While the initial model provides valuable insights, further optimization is warranted. Exploring alternative regression techniques, addressing multicollinearity among predictors, and employing feature selection methods can help enhance model performance.
+
+#### 4.3.9 Next Steps
+
+We will commence with a comprehensive exploration of our dataset in Section 5, utilizing various visualization techniques to gain insights into the relationships between variables. This exploration includes scatter plots (Section 5.1), a correlation matrix (Section 5.2), and in-depth relationship analysis (Section 5.3).
+
+In Section 6, we will employ a stepwise model selection approach to identify the most relevant predictors for our linear regression model. This process will be detailed in Section 6.1. Subsequently, we will present the results for the best linear model iterations in Sections 6.2 and 6.3, followed by a model comparison in Section 6.4.
+
+Ensuring the validity of linear regression assumptions is vital, and we will conduct thorough checks in Section 7. This includes assessing the linearity assumption (Section 7.1), examining the normality of residuals (Section 7.2), and verifying homoscedasticity (constant variance) (Section 7.3).
+
+In Section 8, we will address issues related to heteroscedasticity and multicollinearity. Initially, we will detect and analyze heteroscedasticity in Section 8.1, followed by the presentation of remedial measures in Section 8.2. Subsequently, Section 8.3 will focus on the detection of multicollinearity, with Section 8.4 offering solutions to mitigate its impact.
+
+As we progress, we will explore alternative modeling techniques in Section 9. This includes the implementation of a regression tree model (Section 9.1), a neural network model (Section 9.2), and a support vector machine (SVM) model (Section 9.3). If applicable, we will also consider a logistic regression model (Section 9.4). These alternative models will provide valuable insights and potential enhancements to our predictive capabilities.
+
+```{r reset_section4_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
 
 ## 5. Data Exploration and Visualization
-### 5.1 Scatter Plots
-### 5.2 Correlation Matrix
-### 5.3 Relationship Analysis
+### 5.1 Continuous Variable Plots
+
+#### 5.1.1 Price vs. Square Footage of Living Space
+
+```{r price_vs_sqft_living, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Square Footage of Living Space
+ggplot(data = train_df_non_linear, aes(x = sqft_living, y = price)) +
+  geom_point(pch = 20, col = "blue") +
+  labs(title = "Price vs. Square Footage of Living Space",
+       subtitle = "Seattle Housing Data",
+       x = "Sqft Living Space",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Square Footage of Living Space", section = 5))
+```
+
+In the scatter plot above, we compare the `price` of homes against their `sqft_living` (square footage of interior living space). This visualization allows us to explore the relationship between these two variables.
+
+```{r distribution_sqft_living, echo = TRUE, include = TRUE}
+# Distribution of Square Footage of Living Space
+ggplot(data = train_df_non_linear, aes(x = sqft_living)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Living Space",
+       x = "Sqft Living Space",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Living Space", section = 5))
+```
+
+The histogram above displays the distribution of `sqft_living`. It reveals that the variable is right-skewed, with most homes having smaller living spaces and relatively fewer very large living spaces.
+
+#### 5.1.2 Price vs. Square Footage of Lot
+
+```{r price_vs_sqft_lot, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Square Footage of Lot
+ggplot(data = train_df_non_linear, aes(x = sqft_lot, y = price)) +
+  geom_point(pch = 20, col = "green") +
+  labs(title = "Price vs. Sqft Lot",
+       x = "Sqft Lot",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Lot", section = 5))
+```
+
+The scatter plot above compares `price` against `sqft_lot` (square footage of land space). It helps us understand if there's any relationship between the size of the lot and the sale price.
+
+```{r distribution_sqft_lot, echo = TRUE, include = TRUE}
+# Distribution of Square Footage of Lot
+ggplot(data = train_df_non_linear, aes(x = sqft_lot)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Lot",
+       x = "Sqft Lot",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Lot", section = 5))
+```
+
+The histogram above visualizes the distribution of `sqft_lot`. Similar to `sqft_living`, this variable is right-skewed, with most homes having smaller lot sizes and relatively fewer very large lots.
+
+#### 5.1.3 Price vs. Square Footage Above Ground
+
+```{r price_vs_sqft_above, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Square Footage Above Ground
+ggplot(data = train_df_non_linear, aes(x = sqft_above, y = price)) +
+  geom_point(pch = 20, col = "red") +
+  labs(title = "Price vs. Sqft Above Ground",
+       x = "Sqft Above Ground",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Above Ground", section = 5))
+```
+
+In the scatter plot above, we compare `price` against `sqft_above` (square footage of the interior housing space above ground level). This analysis helps us explore the impact of above-ground living space on home prices.
+
+```{r distribution_sqft_above, echo = TRUE, include = TRUE}
+# Distribution of Square Footage Above Ground
+ggplot(data = train_df_non_linear, aes(x = sqft_above)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Above Ground",
+       x = "Sqft Above Ground",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Above Ground", section = 5))
+```
+
+The histogram above shows the distribution of `sqft_above`. It suggests that most homes have similar above-ground square footage, with relatively fewer having significantly larger or smaller above-ground spaces.
+
+#### 5.1.4 Price vs. Square Footage of Basement
+
+Excluding homes that do not have a basement.
+
+```{r price_vs_sqft_basement, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Square Footage of Basement (excluding 0 sqft basement)
+# Filter data for non-zero sqft_basement
+filtered_data <- train_df_non_linear[train_df_non_linear$sqft_basement > 0,]
+
+# Scatter plot with custom caption
+ggplot(data = filtered_data, aes(x = sqft_basement, y = price)) +
+  geom_point(pch = 20, col = "purple") +
+  labs(title = "Price vs. Sqft Basement",
+       x = "Sqft Basement",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Sqft Basement (Non-Zero Values)", section = 5))
+```
+
+The scatter plot above compares `price` against `sqft_basement` (square footage of the interior housing space below ground level). This visualization helps us understand if the presence and size of a basement influence home prices.
+
+```{r distribution_sqft_basement, echo = TRUE, include = TRUE}
+# Distribution of Square Footage of Basement (excluding 0 values)
+# Histogram with custom caption
+ggplot(data = filtered_data, aes(x = sqft_basement)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Sqft Basement",
+       x = "Sqft Basement",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Sqft Basement (Non-Zero Values)", section = 5))
+```
+
+The histogram above visualizes the distribution of `sqft_basement`. It indicates that most homes have little to no basement space, while some have larger basement areas.
+
+#### 5.1.5 Price vs. Year Built
+
+```{r price_vs_yr_built, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Year Built
+ggplot(data = train_df_non_linear, aes(x = yr_built, y = price)) +
+  geom_point(pch = 20, col = "orange") +
+  labs(title = "Price vs. Year Built",
+       x = "Year Built",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Year Built", section = 5))
+```
+
+The scatter plot above compares `price` against the year when homes were initially built (`yr_built`). This analysis helps us understand how the age of a home relates to its sale price.
+
+```{r distribution_yr_built, echo = TRUE, include = TRUE}
+# Distribution of Year Built
+ggplot(data = train_df_non_linear, aes(x = yr_built)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Year Built",
+       x = "Year Built",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Year Built", section = 5))
+```
+
+The histogram above displays the distribution of `yr_built`. It provides insights into the distribution of home ages in the dataset.
+
+#### 5.1.6 Price vs. Year of Last Renovation
+
+Excluding homes that did not have a documented renovation.
+
+```{r price_vs_yr_renovated, echo = TRUE, include = TRUE}
+# Find lowest non-zero year renovated
+lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
+
+# Filter data for non-zero yr_renovated
+filtered_data <- train_df_non_linear[train_df_non_linear$yr_renovated > 0,]
+
+# Scatter plot of Price vs. Year Renovated
+lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
+ggplot(data = filtered_data, aes(x = yr_renovated, y = price)) +
+  geom_point(pch = 20, col = "brown") +
+  labs(title = "Price vs. Year Renovated",
+       x = "Year Renovated",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Year Renovated (Non-Zero Values)", section = 5)) +
+  xlim(c(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated)))
+```
+
+In the scatter plot above, we compare `price` against the year of the last renovation (`yr_renovated`). This analysis helps us understand whether recent renovations impact home prices.
+
+```{r distribution_yr_renovated, echo = TRUE, include = TRUE, warning = FALSE}
+# Find lowest non-zero year renovated
+lowest_non_zero_renovation_year <- min(train_df_non_linear$yr_renovated[train_df_non_linear$yr_renovated > 0]) - 1
+
+# Filter data for non-zero yr_renovated
+filtered_data <- train_df_non_linear[train_df_non_linear$yr_renovated > 0,]
+
+# Histogram of Year Renovated
+ggplot(data = filtered_data, aes(x = yr_renovated)) +
+  geom_histogram(fill = "orange") +
+  labs(title = "Histogram of Year Renovated",
+       x = "Year Renovated",
+       y = "Density",
+       caption = generate_figure_caption("Histogram of Year Renovated (Non-Zero Values)", section = 5)) +
+  xlim(c(lowest_non_zero_renovation_year, max(train_df_non_linear$yr_renovated)))
+```
+
+The histogram above visualizes the distribution of `yr_renovated`. It provides insights into the distribution of renovation years in the dataset.
+
+#### 5.1.7 Price vs. Distance to Convergence
+
+```{r price_vs_distance_to_convergence, echo = TRUE, include = TRUE}
+# Scatter plot of Price vs. Distance to Convergence
+ggplot(data = train_df_non_linear, aes(x = distance_to_convergence, y = price)) +
+  geom_point(pch = 20, col = "violet") +
+  labs(title = "Price vs. Distance to Convergence",
+       x = "Distance to Convergence",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Distance to Convergence", section = 5))
+```
+
+The scatter plot above compares `price` against `distance_to_convergence`. This analysis helps us explore whether the distance to a convergence point impacts home prices.
+
+```{r distribution_distance_to_convergence, echo = TRUE, include = TRUE}
+# Distribution of Distance to Convergence
+ggplot(data = train_df_non_linear, aes(x = distance_to_convergence)) +
+  geom_histogram(bins = 50) +
+  labs(title = "Distribution of Distance to Convergence",
+       x = "Distance to Convergence",
+       y = "Density",
+       caption = generate_figure_caption("Distribution of Distance to Convergence", section = 5))
+```
+
+### 5.2 Categorical Variable Analysis
+
+The distribution and count of categorical variables such as `bedrooms`, `bathrooms`, `floors`, `waterfront`, `view`, `condition`, and `grade` are analyzed.
+
+#### 5.2.1 Price vs. Bedrooms
+
+```{r price_vs_bedrooms, echo = TRUE, include = TRUE}
+# Convert bedrooms to factor
+train_df_non_linear$bedrooms_factor <- factor(train_df_non_linear$bedrooms)
+
+# Binned Boxplot of Price vs. Bedrooms
+ggplot(data = train_df_non_linear, aes(x = bedrooms_factor, y = price)) +
+  geom_boxplot(fill = "blue") +
+  labs(title = "Price vs. Bedrooms",
+       x = "Bedrooms",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Bedrooms", section = 5))
+```
+
+The scatter plot above compares `price` against the number of `bedrooms`. This visualization helps us understand how the number of bedrooms influences home prices.
+
+```{r distribution_bedrooms, echo = TRUE, include = TRUE}
+# Filter data excluding 33 bedrooms
+filtered_bedrooms <- train_df_non_linear$bedrooms[train_df_non_linear$bedrooms != 33]
+
+# Calculate frequencies of each bedroom count
+bedroom_frequencies <- table(filtered_bedrooms)
+
+ggplot(data = data.frame(filtered_bedrooms = as.factor(names(bedroom_frequencies)),
+                        filtered_counts = as.numeric(bedroom_frequencies)),
+       aes(x = filtered_bedrooms, y = filtered_counts)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(title = "Distribution of Bedrooms (Excluding 33 Bedrooms)",
+       x = "Number of Bedrooms",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Bedrooms (Excluding 33 Bedrooms)", section = 5))
+```
+
+The bar plot above displays the distribution of the `bedrooms` variable, showing the frequency of each bedroom count.
+
+#### 5.2.2 Price vs. Bathrooms
+
+```{r price_vs_bathrooms, echo = TRUE, include = TRUE}
+# Convert bathrooms to factor
+train_df_non_linear$bathrooms_factor <- factor(train_df_non_linear$bathrooms)
+
+# Binned Boxplot of Price vs. Bathrooms
+ggplot(data = train_df_non_linear, aes(x = bathrooms_factor, y = price)) +
+  geom_boxplot(fill = "green") +
+  labs(title = "Price vs. Bathrooms",
+       x = "Bathrooms",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Bathrooms", section = 5))
+```
+
+In the scatter plot above, we compare `price` against the number of `bathrooms`. This analysis helps us explore the relationship between the number of bathrooms and home prices.
+
+```{r distribution_bathrooms, echo = TRUE, include = TRUE}
+# Get data for bar plot
+bathrooms_counts <- table(train_df_non_linear$bathrooms)
+bathrooms <- as.numeric(names(bathrooms_counts))
+counts <- as.numeric(bathrooms_counts)
+
+# Bar plot for the distribution of Bathrooms
+ggplot(data = data.frame(bathrooms, counts), aes(x = bathrooms, y = counts)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(title = "Distribution of Bathrooms",
+       x = "Number of Bathrooms",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Bathrooms", section = 5))
+```
+
+The bar plot above visualizes the distribution of the `bathrooms` variable, showing the frequency of each bathroom count.
+
+#### 5.2.3 Price vs. Floors
+
+```{r price_vs_floors, echo = TRUE, include = TRUE}
+# Binned Boxplot of Price vs. Floors
+ggplot(data = train_df_non_linear, aes(x = floors, y = price, group = floors)) +
+  geom_boxplot(fill = "orange") +
+  labs(title = "Price vs. Floors",
+       x = "Floors",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Floors", section = 5))
+```
+
+The scatter plot above compares `price` against the number of `floors`. This analysis helps us understand how the number of floors in a home relates to its sale price.
+
+```{r distribution_floors, echo = TRUE, include = TRUE}
+floors_counts <- table(train_df_non_linear$floors)
+floors <- as.numeric(names(floors_counts))
+counts <- as.numeric(floors_counts)
+
+# Bar plot for the distribution of Floors
+ggplot(data = data.frame(floors, counts), aes(x = floors, y = counts)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  labs(title = "Distribution of Floors",
+       x = "Number of Floors",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Floors", section = 5))
+```
+
+The bar plot above displays the distribution of the `floors` variable, showing the frequency of each floor count.
+
+#### 5.2.4 Price vs. Waterfront
+
+```{r price_vs_waterfront, echo = TRUE, include = TRUE}
+ggplot(data = train_df_non_linear, aes(x = waterfront_1, y = price, group = waterfront_1)) +
+  geom_boxplot(fill = "purple") +
+  labs(title = "Price vs. Waterfront",
+       x = "Waterfront",
+       y = "Price",
+       caption = generate_figure_caption("Price vs. Waterfront", section = 5),
+       fill = "Waterfront",
+       levels = c("No", "Yes"))  # Labels for waterfront status
+```
+
+In the scatter plot above, we compare `price` against the `waterfront` variable. This visualization helps us explore how having a waterfront view impacts home prices.
+
+```{r distribution_waterfront, echo = TRUE, include = TRUE}
+# Get data for bar plot
+waterfront_counts <- table(train_df_non_linear$waterfront_1)
+waterfront <- as.numeric(names(waterfront_counts))
+counts <- as.numeric(waterfront_counts)
+
+# Bar plot for the distribution of Waterfront
+ggplot(data = data.frame(waterfront, counts), aes(x = waterfront, y = counts)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(title = "Distribution of Waterfront",
+       x = "Waterfront",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Waterfront", section = 5),
+       fill = "Waterfront",
+       levels = c("No", "Yes"))  # Labels for waterfront status
+
+```
+
+The bar plot above visualizes the distribution of the `waterfront` variable, showing the frequency of waterfront and non-waterfront properties.
+
+#### 5.2.5 Price vs. View
+
+```{r price_vs_view, echo = TRUE, include = TRUE}
+# Convert view categories from dummy variables to a factor for better labeling in ggplot
+train_df_non_linear$view_category <- factor(apply(train_df_non_linear[, c("view_0", "view_1", "view_2", "view_3", "view_4")], 1, function(x) which(x == 1)),
+                                             labels = c("View 0", "View 1", "View 2", "View 3", "View 4"))
+
+# Create the boxplot with ggplot2
+ggplot(train_df_non_linear, aes(x = view_category, y = price)) +
+  geom_boxplot(fill = "brown") +
+  labs(title = "Price vs. View Quality",
+       x = "View Quality",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. View Quality", section = 5))
+```
+
+The scatter plot above compares `price` against the `view` variable, which represents the quality of the property's view. This analysis helps us explore how the view quality impacts home prices.
+
+```{r distribution_view, echo = TRUE, include = TRUE}
+# Calculate frequencies of each view quality rating
+view_frequencies <- colSums(train_df_non_linear[, c("view_0", "view_1", "view_2", "view_3", "view_4")])
+
+# Convert frequencies to data frame for ggplot2
+view_df <- data.frame(View = names(view_frequencies), Frequency = view_frequencies)
+
+# Create the bar plot with ggplot2
+ggplot(view_df, aes(x = View, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(title = "Distribution of View Quality",
+       x = "View Quality",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of View Quality", section = 5))
+```
+
+The bar plot above displays the distribution of the `view` variable, showing the frequency of different view quality ratings.
+
+#### 5.2.6 Price vs. Condition
+
+```{r price_vs_condition, echo = TRUE, include = TRUE}
+# Convert condition categories from dummy variables to a factor
+train_df_non_linear$condition_category <- factor(apply(train_df_non_linear[, c("condition_1", "condition_2", "condition_3", "condition_4", "condition_5")], 1, function(x) which(x == 1)),
+                                                 labels = c("Condition 1", "Condition 2", "Condition 3", "Condition 4", "Condition 5"))
+
+# Create the boxplot with ggplot2
+ggplot(train_df_non_linear, aes(x = condition_category, y = price)) +
+  geom_boxplot(fill = "blue") +
+  labs(title = "Price vs. Condition",
+       x = "Condition",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. Condition", section = 5))
+```
+
+In the scatter plot above, we compare `price` against the `condition` variable, which represents the condition of the property. This analysis helps us explore how property condition relates to home prices.
+
+```{r distribution_condition, echo = TRUE, include = TRUE}
+# Calculate frequencies of each condition rating
+condition_frequencies <- colSums(train_df_non_linear[, c("condition_1", "condition_2", "condition_3", "condition_4", "condition_5")])
+
+# Convert frequencies to a data frame for ggplot2
+condition_df <- data.frame(Condition = names(condition_frequencies), Frequency = condition_frequencies)
+
+# Create the bar plot with ggplot2
+ggplot(condition_df, aes(x = Condition, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(title = "Distribution of Condition",
+       x = "Condition Rating",
+       y = "Frequency",
+       caption = generate_figure_caption("Distribution of Condition", section = 5))
+```
+
+The bar plot above visualizes the distribution of the `condition` variable, showing the frequency of different condition ratings.
+
+#### 5.2.7 Price vs. Grade
+
+```{r price_vs_grade, echo = TRUE, include = TRUE}
+# First, identify all grade-related columns in the dataframe
+grade_columns <- grep("grade_", names(train_df_non_linear), value = TRUE)
+
+# Convert dummy variables back to a single categorical variable representing the grade
+train_df_non_linear$grade_category <- apply(train_df_non_linear[, grade_columns], 1, function(row) {
+  if (all(is.na(row))) {
+    return(NA)  # Return NA if all values in the row are NA
+  } else {
+    idx <- which(row == 1, arr.ind = TRUE)
+    return(if(length(idx) > 0) idx else NA)  # Return the index of the grade, or NA if none is 1
+  }
+})
+
+# Extract grade labels from column names, replacing underscores with hyphens for better readability
+grade_labels <- sub("grade_", "", grade_columns) # Remove 'grade_' prefix
+grade_labels <- gsub("_", "-", grade_labels) # Replace underscores with hyphens
+
+# Create a boxplot of Price vs. Grade
+ggplot(train_df_non_linear, aes(x = factor(grade_category, labels = grade_labels), y = price)) +
+  geom_boxplot(fill = "green") +
+  labs(title = "Price vs. Grade",
+       x = "Grade",
+       y = "Price",
+       caption = generate_figure_caption("Boxplot of Price vs. Grade", section = 5))
+```
+
+The scatter plot above compares `price` against the `grade` variable, which has been aggregated into categories as per the provided header. This analysis helps us explore how the grade of construction and design impacts home prices.
+
+```{r distribution_grade, echo = TRUE, include = TRUE}
+# Histogram for the Distribution of Grade
+# Convert the grade category to a numeric variable for histogram plotting
+train_df_non_linear$grade_category_numeric <- as.numeric(train_df_non_linear$grade_category)
+
+# Define breaks for histogram
+num_breaks <- length(unique(train_df_non_linear$grade_category_numeric, na.rm = TRUE))
+hist_breaks <- seq(min(train_df_non_linear$grade_category_numeric, na.rm = TRUE) - 0.5,
+                   max(train_df_non_linear$grade_category_numeric, na.rm = TRUE) + 0.5,
+                   length.out = num_breaks + 1)
+
+# Create a histogram with ggplot2
+ggplot(train_df_non_linear, aes(x = grade_category_numeric)) +
+  geom_histogram(fill = "purple", breaks = hist_breaks) +
+  scale_x_continuous(breaks = seq_along(grade_labels), labels = grade_labels) +
+  labs(title = "Distribution of Grade",
+       x = "Grade",
+       y = "Frequency",
+       caption = generate_figure_caption("Histogram of Distribution of Grade", section = 5))
+```
+
+The bar plot above displays the distribution of the `grade_category` variable, showing the frequency of different grade categories.
+
+### 5.3 Correlation Analysis
+
+Understanding how continuous variables correlate with each other and, more importantly, with the target variable `price`.
+
+#### 5.3.1 Correlation Matrix
+
+```{r correlation_analysis, echo = TRUE, include = TRUE}
+# Correlation Matrix of Numeric Variables
+cor_matrix <- cor(train_df_non_linear[sapply(train_df_non_linear, is.numeric)])
+```
+
+```{r correlation_matrix_table, echo = TRUE, include = TRUE}
+# Create a table of sorted correlation values
+cor_table <- as.data.frame(sort(cor_matrix[,"price"], decreasing = TRUE))
+
+# Display the top 20 correlation values
+top_20_corr <- cor_table[1:20, , drop = FALSE]
+```
+
+```{r corr_matrix_table_display, echo = FALSE, include = TRUE, results = 'asis'}
+# Specify the height for the scrollable div
+table_height <- "400px"
+
+# Create a scrollable div and place the table inside it
+cat(sprintf('<div style="overflow-y: scroll; max-height: %s;">', table_height))
+kable(top_20_corr, col.names = c("Variable", "Correlation with Price"), caption = generate_table_caption("Top 20 Correlation Values with Price", section = 5))
+cat('</div>')
+```
+
+#### 5.3.2 Correlation Graphics Analysis
+
+In the tables presented above, we've showcased the top 20 correlation values concerning the target variable, `price`, with the values sorted by their absolute magnitudes. Here are some crucial observations from this analysis:
+
+   1. **Positive Correlations with Price**:
+      - Variables like `sqft_living`, `sqft_above`, `sqft_living15`, and `bathrooms` exhibit robust positive correlations with the target variable (`price`). This implies that as these features increase, house prices tend to increase correspondingly.
+      - Features such as `grade_11_13`, `view_4`, and `grade_8_10` also demonstrate positive correlations, indicating that properties with higher grades and better views tend to command higher prices.
+
+   2. **Negative Correlations with Price**:
+      - There are no negative correlations among the top 20 correlated variables. This suggests that none of the examined features strongly suggest a decrease in house price as they increase.
+
+   3. **Feature Importance**:
+      - The strength of these correlations provides insights into the importance of variables in predicting house prices. Variables like `sqft_living` and `grade_11_13` emerge as strong predictors of price.
+      - Location-related variables, such as `zipcode_98004`, `zipcode_98039`, and `zipcode_98040`, also exhibit noteworthy positive correlations, underscoring the significance of location in price determination.
+
+#### 5.3.3 Correlation Heatmap
+
+```{r correlation_heatmap, echo = TRUE, include = TRUE}
+# Heatmap of the top 20 correlation values
+# Filter the top 20 correlation values
+top_20_corr_variables <- rownames(top_20_corr)
+top_20_corr_matrix <- cor_matrix[top_20_corr_variables, top_20_corr_variables]
+
+# Create a heatmap
+ggplot(melt(top_20_corr_matrix), aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  labs(title = "Top 20 Correlations",
+       x = "Variable",
+       y = "Variable",
+       caption = generate_figure_caption("Heatmap showing the top 20 correlations", section = 5)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### 5.3.4 Correlation Matrix for Multicollinearity
+
+```{r correlation_matrix_for_multicollinearity, echo = TRUE, include = TRUE, results = 'asis'}
+# Selecting predictors and excluding the response variable 'price'
+predictors <- dplyr::select(train_df_linear, -price)
+
+# Convert factors to numeric
+numeric_predictors <- predictors %>%
+  mutate(across(where(is.factor), as.numeric)) %>%
+  mutate(across(where(is.character), ~as.numeric(as.factor(.))))
+
+# Calculate the correlation matrix
+corr_matrix <- cor(numeric_predictors, use = "pairwise.complete.obs")
+
+# Convert the correlation matrix to a long format
+correlated_pairs_df <- melt(corr_matrix)
+
+# Filter out redundant pairs (keep only lower triangle of the matrix)
+correlated_pairs_df <- correlated_pairs_df %>%
+  filter(Var1 != Var2) %>%  # Remove self-correlations
+  filter(abs(value) > 0.8) %>%
+  filter(match(Var1, rownames(corr_matrix)) < match(Var2, rownames(corr_matrix)))
+
+# Rename columns for clarity
+correlated_pairs_df <- correlated_pairs_df %>%
+  rename(Variable1 = Var1, Variable2 = Var2, Correlation = value)
+
+# Output the table of highly correlated pairs using knitr::kable()
+knitr_table <- kable(
+  correlated_pairs_df,
+  caption = generate_table_caption("Highly Correlated Variable Pairs", section = 5),
+  format = "markdown"
+)
+print(knitr_table)
+```
+
+#### 5.3.5 Detailed Explanation for Removal
+
+##### 5.3.5.1 `sqft_above` & `sqft_living`
+
+The removal of `sqft_above` and `sqft_living` is justified due to their high correlation coefficient of 0.8744114. `sqft_above` represents the square footage of the living area above ground, while `sqft_living` encompasses the total square footage of living space. Since `sqft_above` is a subset of `sqft_living`, it is likely to contain redundant information, making it less valuable for our model.
+
+##### 5.3.5.2 `month_sold` & `week_of_year`
+
+The variables `month_sold` and `week_of_year` exhibit a remarkably high correlation coefficient of 0.9955447. These variables are intrinsically correlated as they both pertain to the date of the house sale. While `day_of_year` provides the most detailed temporal information, retaining both `week_of_year` and `month_sold` may lead to multicollinearity issues. It's advisable to consider removing one of these variables to mitigate multicollinearity while preserving the most granular date-related information.
+
+##### 5.3.5.3 `month_sold` & `day_of_year`
+
+Similar to the previous case, `month_sold` and `day_of_year` demonstrate a high correlation coefficient of 0.9958281. Both variables are related to the date of the house sale. Given that `day_of_year` provides the most granular temporal information, it may be preferred to retain it while considering the removal of `month_sold` to address multicollinearity concerns.
+
+##### 5.3.5.4 `week_of_year` & `day_of_year`
+
+The correlation coefficient of 0.9996951 between `week_of_year` and `day_of_year` indicates an extremely high correlation. Both variables are associated with the date of sale. Given the granularity of `day_of_year`, retaining it and potentially removing `week_of_year` can be a strategy to reduce multicollinearity while retaining essential date-related information.
+
+##### 5.3.5.5 `condition_4` & `condition_3`
+
+The variables `condition_4` and `condition_3` display a notable negative correlation coefficient of -0.8095157. These variables are derived from the categorical variable indicating the condition of the house. Through one-hot encoding, binary variables were created for each condition. Since these conditions are mutually exclusive, they exhibit a negative correlation. Consideration can be given to keeping one condition as a reference group and discarding the other, or reverting to using the original categorical variable to effectively capture overall house condition.
+
+##### 5.3.5.6 `grade_Above_Average` & `grade_Average`
+
+The correlation coefficient of -0.9954905 between `grade_Above_Average` and `grade_Average` highlights a strong negative correlation. These variables represent different grade categories of houses. Such a high correlation suggests that retaining both variables may introduce multicollinearity into the model. Decisions can be made to keep one of these variables as a representative of house grade or explore alternative encoding strategies.
+
+By addressing the removal of these highly correlated variable pairs, our primary goal is to mitigate multicollinearity issues. Multicollinearity can distort regression coefficient estimates, inflate standard errors, and potentially obscure the statistical significance of predictors. The objective is to retain variables that provide unique and informative contributions to the model's prediction of house prices.
+
+### 5.5 Temporal Trends Analysis
+
+Analyzing the influence of time-related features such as `month`, and `season` on house prices.
+
+#### 5.5.1 Monthly Trends in Average House Prices
+
+```{r monthly_trends_in_average_house_prices, echo = TRUE, include = TRUE}
+# Monthly Trends in Average House Prices
+monthly_trends <- aggregate(train_df_non_linear$price, by = list(train_df_non_linear$month_sold), FUN = mean)
+colnames(monthly_trends) <- c("Month", "Average_Price")
+
+# Find the global maximum
+global_max <- monthly_trends[which.max(monthly_trends$Average_Price), ]
+
+ggplot(monthly_trends, aes(x = Month, y = Average_Price)) +
+  geom_line() +
+  geom_text(data = global_max, aes(x = Month, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +
+  labs(title = "Monthly Trends in Average House Prices", x = "Month", y = "Average Price", caption = generate_figure_caption("Monthly Trends in Average House Prices", section = 5)) +
+  scale_x_continuous(breaks = 1:12, labels = month.name) +
+  theme_minimal()
+```
+
+```{r monthly_trends_count, echo = TRUE, include = TRUE}
+# Monthly Trends in Count of Homes Sold
+monthly_counts <- table(train_df_non_linear$month_sold)
+months <- factor(1:12, labels = month.name)
+monthly_counts_df <- data.frame(Month = months, Count = as.numeric(monthly_counts))
+
+# Find the global maximum
+global_max_count <- monthly_counts_df[which.max(monthly_counts_df$Count), ]
+
+ggplot(monthly_counts_df, aes(x = Month, y = Count, group = 1)) +
+  geom_bar(stat = "identity") +
+  geom_text(data = global_max_count, aes(x = Month, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
+  labs(title = "Monthly Trends in Count of Homes Sold", x = "Month", y = "Count of Homes Sold", caption = generate_figure_caption("Monthly Trends in Count of Homes Sold", section = 5)) +
+  theme_minimal()
+```
+
+#### 5.5.2 Seasonal Trends in Average House Prices
+
+```{r seasonal_trends_in_average_house_prices, echo = TRUE, include = TRUE}
+# Aggregate average price for each season
+seasonal_trends <- data.frame(
+  Season = c("Winter", "Spring", "Summer", "Fall"),
+  Average_Price = c(
+    mean(train_df_non_linear$price[train_df_non_linear$season_Winter == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Spring == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Summer == 1]),
+    mean(train_df_non_linear$price[train_df_non_linear$season_Fall == 1])
+  )
+)
+
+# Find the global maximum
+global_max_seasonal <- seasonal_trends[which.max(seasonal_trends$Average_Price), ]
+
+# Plotting
+ggplot(seasonal_trends, aes(x = Season, y = Average_Price, fill = Season)) +
+  geom_bar(stat = "identity") +
+  geom_text(data = global_max_seasonal, aes(label = paste("Global Max:", round(Average_Price, 2)), y = Average_Price), vjust = -0.5) +
+  labs(title = "Seasonal Trends in Average House Prices", x = "Season", y = "Average Price", caption = generate_figure_caption("Seasonal Trends in Average House Prices", section = 5)) +
+  theme_minimal()
+
+```
+
+```{r seasonal_trends_count, echo = TRUE, include = TRUE}
+# Count homes sold for each season
+seasonal_counts <- c(
+  sum(train_df_non_linear$season_Winter == 1),
+  sum(train_df_non_linear$season_Spring == 1),
+  sum(train_df_non_linear$season_Summer == 1),
+  sum(train_df_non_linear$season_Fall == 1)
+)
+seasonal_counts_df <- data.frame(Season = c("Winter", "Spring", "Summer", "Fall"), Count = seasonal_counts)
+
+# Find the global maximum
+global_max_count_seasonal <- seasonal_counts_df[which.max(seasonal_counts_df$Count), ]
+
+# Plotting
+ggplot(seasonal_counts_df, aes(x = Season, y = Count, fill = Season)) +
+  geom_bar(stat = "identity") +
+  geom_text(data = global_max_count_seasonal, aes(label = paste("Global Max:", Count), y = Count), vjust = -0.5) +
+  labs(title = "Seasonal Trends in Count of Homes Sold", x = "Season", y = "Count of Homes Sold", caption = generate_figure_caption("Seasonal Trends in Count of Homes Sold", section = 5)) +
+  theme_minimal()
+
+```
+
+#### 5.5.3 Week of the Year Trends in Average House Prices
+
+```{r week_of_the_year_trends_in_average_house_prices, echo = TRUE, include = TRUE}
+# Week of the Year Trends in Average House Prices
+weekly_trends <- aggregate(train_df_non_linear$price, by = list(train_df_non_linear$week_of_year), FUN = mean)
+colnames(weekly_trends) <- c("Week_of_Year", "Average_Price")
+
+# Find the global maximum
+global_max_weekly <- weekly_trends[which.max(weekly_trends$Average_Price), ]
+
+ggplot(weekly_trends, aes(x = Week_of_Year, y = Average_Price)) +
+  geom_line() +
+  geom_text(data = global_max_weekly, aes(x = Week_of_Year, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +  # Add label for global maximum
+  labs(title = "Weekly Trends in Average House Prices", x = "Week of Year", y = "Average Price", caption = generate_figure_caption("Weekly Trends in Average House Prices", section = 5)) +
+  theme_minimal()
+```
+
+```{r week_of_the_year_trends_count, echo = TRUE, include = TRUE}
+# Weekly Trends in Count of Homes Sold
+weekly_counts <- table(train_df_non_linear$week_of_year)
+weekly_counts_df <- data.frame(Week_of_Year = as.numeric(names(weekly_counts)), Count = as.numeric(weekly_counts))
+
+# Find the global maximum
+global_max_count_weekly <- weekly_counts_df[which.max(weekly_counts_df$Count), ]
+
+ggplot(weekly_counts_df, aes(x = Week_of_Year, y = Count)) +
+  geom_bar(stat = "identity") +
+  geom_text(data = global_max_count_weekly, aes(x = Week_of_Year, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
+  labs(title = "Weekly Trends in Count of Homes Sold", x = "Week of Year", y = "Count of Homes Sold", caption = generate_figure_caption("Weekly Trends in Count of Homes Sold", section = 5)) +
+  theme_minimal()
+```
+
+#### 5.5.4 Day of the Year Trends in Average House Prices
+
+```{r day_of_the_year_trends_in_average_house_prices, echo = TRUE, include = TRUE}
+# Day of the Year Trends in Average House Prices
+daily_trends <- aggregate(train_df_non_linear$price, by = list(train_df_non_linear$day_of_year), FUN = mean)
+colnames(daily_trends) <- c("Day_of_Year", "Average_Price")
+
+# Find the global maximum
+global_max_daily <- daily_trends[which.max(daily_trends$Average_Price), ]
+
+ggplot(daily_trends, aes(x = Day_of_Year, y = Average_Price)) +
+  geom_line() +
+  geom_text(data = global_max_daily
+
+, aes(x = Day_of_Year, y = Average_Price, label = paste("Global Max:", round(Average_Price, 2))), vjust = -0.5) +  # Add label for global maximum
+  labs(title = "Daily Trends in Average House Prices", x = "Day of Year", y = "Average Price", caption = generate_figure_caption("Daily Trends in Average House Prices", section = 5)) +
+  theme_minimal()
+```
+
+```{r day_of_the_year_trends_count, echo = TRUE, include = TRUE}
+# Daily Trends in Count of Homes Sold
+daily_counts <- table(train_df_non_linear$day_of_year)
+daily_counts_df <- data.frame(Day_of_Year = as.numeric(names(daily_counts)), Count = as.numeric(daily_counts))
+
+# Find the global maximum
+global_max_count_daily <- daily_counts_df[which.max(daily_counts_df$Count), ]
+
+ggplot(daily_counts_df, aes(x = Day_of_Year, y = Count)) +
+  geom_bar(stat = "identity") +
+  geom_text(data = global_max_count_daily, aes(x = Day_of_Year, y = Count, label = paste("Global Max:", Count)), vjust = -0.5) +  # Add label for global maximum
+  labs(title = "Daily Trends in Count of Homes Sold", x = "Day of Year", y = "Count of Homes Sold", caption = generate_figure_caption("Daily Trends in Count of Homes Sold", section = 5)) +
+  theme_minimal()
+```
+
+- The "Daily Trends in Average House Prices" line chart showcases the average house prices for each day of the year. It helps identify daily patterns and potential price variations that could be influenced by specific dates or events.
+
+### 5.6 Geographical Influence Analysis
+
+Investigating the spatial aspect by analyzing the `distance_to_convergence` variable.
+
+#### 5.6.1 Distance to Convergence Point Map
+
+```{r geographical_price_analysis, echo = TRUE, include = TRUE, results = 'asis'}
+# Calculate z-scores for the prices
+train_df_non_linear <- train_df_non_linear %>%
+  mutate(z_score = scale(price))
+
+# Define z-score intervals and corresponding colors
+z_score_intervals <- seq(-3, 3, by = 1)  # Create a sequence of z-scores from -3 to 3
+color_sequence <- c("green", "#8fd744", "#fde725", "#f76818ff", "#d7301fff", "#440154")  # From green to dark color
+
+# Calculate price at each z-score interval
+price_at_intervals <- sapply(z_score_intervals, function(z) {
+  mean(train_df_non_linear$price) + z * sd(train_df_non_linear$price)
+})
+
+# Ensure breaks are in ascending order and rounded to the nearest 25k
+breaks <- sort(round(price_at_intervals / 25000) * 25000)
+breaks <- c(min(train_df_non_linear$price, na.rm = TRUE), breaks, max(train_df_non_linear$price, na.rm = TRUE))
+
+# If there are negative values or values that don't make sense, remove them
+breaks <- breaks[breaks >= 0]
+
+# Create color palette with a color for each interval
+color_palette <- colorBin(color_sequence, domain = train_df_non_linear$price, bins = breaks, na.color = "#808080")
+
+# Initialize the leaflet map with updated color palette
+m <- leaflet(train_df_non_linear) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    lat = ~lat, lng = ~long,
+    color = ~color_palette(price),
+    fillColor = ~color_palette(price),
+    fillOpacity = 0.8,
+    radius = 1,  # Small dots
+    popup = ~paste("Price: $", formatC(price, format = "f", big.mark = ","), "<br>", "Z-Score: ", round(z_score, 2))
+  )
+
+# Define the maximum distance for the distance bands
+max_distance <- max(train_df_non_linear$distance_to_convergence, na.rm = TRUE)
+
+# Add distance bands to the map
+for (i in seq(2, max_distance, by = 2)) {
+  m <- addCircles(m, lat = convergence_point[1], lng = convergence_point[2], radius = i * 1000,
+                  color = "grey", weight = 1, fill = FALSE, dashArray = "5, 5")
+}
+
+# Add legend and finalize the map
+m <- m %>%
+  addLegend(
+    position = "bottomright",
+    pal = color_palette,
+    values = ~price,
+    title = "Price",
+    labFormat = labelFormat(prefix = "$"),
+    opacity = 1
+  ) %>%
+  setView(lng = convergence_point[2], lat = convergence_point[1], zoom = 10)
+
+cat(generate_figure_caption('Distance to Convergence Map', section = 5))
+```
+
+```{r display_geo_map, echo = FALSE, include = TRUE}
+# Print the map
+m
+```
+
+#### 5.6.2 Conclusion
+This detailed review of the King County house sales dataset underscores the thorough preparation undertaken for the predictive analysis. The dataset's diverse variables, both continuous and categorical, have been meticulously processed and analyzed, providing a robust foundation for developing the predictive model. With the comprehensive EDA and graphical analysis, we gain valuable insights into the correlations and distributions within the data, setting the stage for effective model building and accurate house price prediction.
+
+### 5.7 Removal of Plot Features and Multicollinearity
+
+```{r remove_plot_features, echo = TRUE, include = TRUE}
+# Drop columns created for visualizations in prior steps, and columns that have almost perfect correlation and multicollinearity.
+train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
+
+# Rebuild linear regression model before performing stepwise
+linear_model_initial <- lm(price ~ ., data = train_df_linear)
+```
+
+
+```{r reset_section5_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
 
 ## 6. Stepwise Model Selection
+
 ### 6.1 Stepwise Methodology
+
+
+```{r step_model, echo = TRUE, include = TRUE}
+
+# Define a function to fetch dropped features from models and create a kable table
+get_dropped_features_table <- function(model_backward, model_forward, model_both, train_df_linear) {
+  # Create a data frame to store the results
+  results_df <- data.frame(Stepwise_Method = character(), Dropped_Features = character(), stringsAsFactors = FALSE)
+
+  # All possible features (excluding the response variable 'price')
+  all_possible_features <- setdiff(colnames(train_df_linear), "price")
+
+  # Function to find the dropped features for a given model
+  get_dropped_features <- function(model, all_features) {
+    included_features <- names(coef(model))
+    dropped_features <- setdiff(all_features, included_features)
+    return(paste(dropped_features, collapse = ", "))
+  }
+
+  # Get the dropped features for each model
+  dropped_backward <- get_dropped_features(model_backward, all_possible_features)
+  dropped_forward <- get_dropped_features(model_forward, all_possible_features)
+  dropped_both <- get_dropped_features(model_both, all_possible_features)
+
+  # Add results to the data frame
+  results_df <- rbind(results_df, data.frame(Stepwise_Method = "OLS_Step_Backward", Dropped_Features = dropped_backward))
+  results_df <- rbind(results_df, data.frame(Stepwise_Method = "OLS_Step_Forward", Dropped_Features = dropped_forward))
+  results_df <- rbind(results_df, data.frame(Stepwise_Method = "OLS_Step_Both", Dropped_Features = dropped_both))
+
+  # Create the kable table
+  table <- kable(
+    results_df,
+    format = "html",
+    caption = generate_table_caption("Dropped Features", section = 6),
+    col.names = c("Stepwise Method", "Dropped Features")
+  ) %>%
+    kable_styling(full_width = TRUE)
+
+  return(table)
+}
+
+# Conditional logic based on the update_model_parameters flag
+if (update_model_parameters) {
+  # Run each of the stepwise regression models and update the JSON file
+  # Step model both
+  model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
+
+  # Create a formula with the selected features
+  formula <- reformulate(features_forward, response = "price")
+
+  # Refit the model with the selected features
+  model_both <- lm(formula, data = train_df_linear)
+
+  # Update JSON
+  update_model_json("OLS_Step_Both", features_both, json_filepath)
+
+  # Step model Backward
+  model_backward <- ols_step_backward_p(linear_model_initial, pent=0.35, prem = 0.05)
+  features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
+
+  # Create a formula with the selected features
+  formula <- reformulate(features_forward, response = "price")
+
+  # Refit the model with the selected features
+  model_backward <- lm(formula, data = train_df_linear)
+
+  # Update JSON
+  update_model_json("OLS_Step_Backward", features_backward, json_filepath)
+
+  # Step model foward
+  model_forward <- ols_step_forward_p(linear_model_initial, pent=0.35, penter = 0.05)
+  features_forward <- setdiff(names(coef(model_forward$model)), "(Intercept)")
+
+  # Create a formula with the selected features
+  formula <- reformulate(features_forward, response = "price")
+
+  # Refit the model with the selected features
+  model_forward <- lm(formula, data = train_df_linear)
+
+  # Update JSON
+  update_model_json("OLS_Step_Forward", features_forward, json_filepath)
+
+} else {
+  # Load model parameters from JSON and build models
+  model_params <- fromJSON(json_filepath)
+
+  # Create models based on the loaded features
+  if (all(c("OLS_Step_Both", "OLS_Step_Backward", "OLS_Step_Forward") %in% names(model_params))) {
+    # For each model type, create the model using the features stored in the JSON
+    model_both <- create_model(train_df_linear, 'price', model_params$OLS_Step_Both)
+    model_backward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Backward)
+    model_forward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Forward)
+  } else {
+    stop("Required model parameters are missing in the JSON file.")
+  }
+}
+
+# Evaluate OLS_Step_Both
+df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate OLS_Step_Backward
+df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# Evaluate OLS_Step_Forward
+df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+
+# featch all the dropped features from each of the models
+dropped_features_table <- get_dropped_features_table(model_backward, model_forward, model_both, train_df_linear)
+```
+
+```{r display_stepwise_dropped_features, echo = FALSE, include = TRUE, results = 'asis'}
+dropped_features_table
+```
+
+```{r display_stepwise_models, echo = TRUE, include = TRUE}
+# Display model results
+view_model_results(df_results, generate_table_caption("Step Model Additions", section = 6))
+best_linear_model <- linear_model_initial
+```
+
 ### 6.2 Best Linear Model 1
 ### 6.3 Best Linear Model 2
 ### 6.4 Model Comparison
 
+```{r reset_section6_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
+
 ## 7. Model Assumption Checks
 ### 7.1 Linearity Assumption
+
+#### 7.1.1 Residuals vs Fitted Plot
+
+The residuals vs fitted plot is our first stop to assess the assumption of linearity. The ideal scenario is a random spread of residuals around the horizontal axis, indicating a linear relationship between predictors and the response.
+
+```{r residuals_vs_fitted_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Residuals vs Fitted Plot for Linear Model", section = 7)
+cat(caption)
+plot(best_linear_model, 1)
+```
+
+#### 7.1.2 Residuals vs Leverage Plot
+
+We use the `ols_plot_resid_lev` function to create a plot for detecting outliers and observations with high leverage.
+
+```{r residuals_vs_leverage_plot_v2, echo=FALSE, include = TRUE, results = 'asis'}
+# Output figure and caption
+# Plot the residuals vs leverage plot in the first row
+cat(generate_figure_caption("OLS Outlier and Leverage Diagnostics Linear Model", section = 7))
+ols_plot_resid_lev(best_linear_model)
+```
+
+#### 7.1.3 Residuals vs Fitted Plot
+
+We use the `ols_plot_resid_stud_fit` function to create a plot that helps detect non-linearity, constant variances, and outliers in residuals.
+
+```{r residuals_vs_fitted_plot_v2, echo = FALSE, include = TRUE, results = 'asis'}
+# Output figure and caption
+cat(generate_figure_caption("Deleted Studentized Resid. vs Pred. Linear Model", section = 7))
+ols_plot_resid_stud_fit(best_linear_model)
+```
+
 ### 7.2 Normality of Residuals
+
+#### 7.2.1 Normal Q-Q Plot
+
+The Q-Q plot offers a visual comparison of the distribution of residuals against a perfectly normal distribution. Deviations from the diagonal indicate departures from normality.
+
+```{r QQ_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("QQ Plot for Linear Model", section = 7)
+cat(caption)
+plot(best_linear_model, 2)
+```
+
 ### 7.3 Homoscedasticity (Constant Variance)
 
+#### 7.3.1 Scale-Location Plot
+
+Also known as the spread-location plot, it's used to check for equal variance of residuals (homoscedasticity).
+
+```{r scale_location_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Scale-Location Plot for Linear Model", section = 7)
+cat(caption)
+plot(best_linear_model, 3)
+```
+
+### 7.4 Outliers and Influential Points
+
+#### 7.4.1 Cook's Distance Plot
+
+The Cook's distance plot is instrumental in quantifying the influence of each data point.
+
+```{r cooks_distance_plot, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Cooks Distance Plot for Linear Model", section = 7)
+cat(caption)
+plot(best_linear_model, 4)
+```
+
+#### 7.4.2 Cooks Distance with Threshold
+
+```{r cooks_distance_calculation, echo = FALSE, include = TRUE, results = 'asis'}
+# Calculate Cook's distance for each observation
+cooksd <- cooks.distance(best_linear_model)
+# Output figure and caption
+cat(generate_figure_caption("OLS Cooks Distance Plot for Linear Model", section = 7))
+# Create a plot of Cook's distance
+plot(cooksd, type = "h", main = "Cook's Distance", ylab = "Cook's Distance", xlab = "Observation Index")
+abline(h = 0.04, col = "red", lwd = 2) # .04 is a common threshold for Cook's distance
+
+# Define the threshold for Cook's distance
+threshold <- 0.04
+
+# Identify observations where Cook's distance exceeds the threshold
+high_cooksd <- which(cooksd > threshold)
+
+# Add labels to the points above the threshold
+text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
+```
+
+```{r reset_section7_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+#### 7.4.3 Filtering Outliers
+
+We filter the data points with Cook's distance >= 0.04, which is a reasonable threshold for identifying influential data points according to industry standards.
+
+```{r outlier_filtering, echo=FALSE, include = TRUE}
+# Define the threshold for Cook's distance, opting for slightly lower than .04 as it benefits the model performance to do a little bit lower
+threshold <- 0.04
+
+# Identify the indices of influential observations
+influential_obs <- which(cooksd > threshold)
+
+print(influential_obs)
+```
+
+---
 ## 8. Addressing Heteroscedasticity and Multicollinearity
 ### 8.1 Detection of Heteroscedasticity
 ### 8.2 Remedial Measures for Heteroscedasticity
@@ -309,7 +1745,7 @@ cat('</div>')
 ### 9.1 Regression Tree Model
 ### 9.2 Neural Network Model
 ### 9.3 Support Vector Machine (SVM) Model
-### 9.4 Logistic Regression (if applicable)
+### 9.4 Logistic Regression
 
 ## 10. Model Evaluation on Test Data
 ### 10.1 Test Data Performance Metrics
