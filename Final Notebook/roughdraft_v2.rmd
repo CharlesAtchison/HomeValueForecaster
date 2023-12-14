@@ -1495,7 +1495,7 @@ table_counter <- 0
 ```{r step_model, echo = TRUE, include = TRUE}
 
 # Define a function to fetch dropped features from models and create a kable table
-get_dropped_features_table <- function(model_backward, model_forward, model_both, train_df_linear) {
+get_dropped_features_table <- function(model_backward, model_forward, best_linear_model, train_df_linear) {
   # Create a data frame to store the results
   results_df <- data.frame(Stepwise_Method = character(), Dropped_Features = character(), stringsAsFactors = FALSE)
 
@@ -1512,7 +1512,7 @@ get_dropped_features_table <- function(model_backward, model_forward, model_both
   # Get the dropped features for each model
   dropped_backward <- get_dropped_features(model_backward, all_possible_features)
   dropped_forward <- get_dropped_features(model_forward, all_possible_features)
-  dropped_both <- get_dropped_features(model_both, all_possible_features)
+  dropped_both <- get_dropped_features(best_linear_model, all_possible_features)
 
   # Add results to the data frame
   results_df <- rbind(results_df, data.frame(Stepwise_Method = "OLS_Step_Backward", Dropped_Features = dropped_backward))
@@ -1535,14 +1535,14 @@ get_dropped_features_table <- function(model_backward, model_forward, model_both
 if (update_model_parameters) {
   # Run each of the stepwise regression models and update the JSON file
   # Step model both
-  model_both <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
-  features_both <- setdiff(names(coef(model_both$model)), "(Intercept)")
+  best_linear_model <- ols_step_both_p(linear_model_initial, pent=0.35, prem=0.05)
+  features_both <- setdiff(names(coef(best_linear_model$model)), "(Intercept)")
 
   # Create a formula with the selected features
   formula <- reformulate(features_forward, response = "price")
 
   # Refit the model with the selected features
-  model_both <- lm(formula, data = train_df_linear)
+  best_linear_model <- lm(formula, data = train_df_linear)
 
   # Update JSON
   update_model_json("OLS_Step_Both", features_both, json_filepath)
@@ -1573,6 +1573,28 @@ if (update_model_parameters) {
   # Update JSON
   update_model_json("OLS_Step_Forward", features_forward, json_filepath)
 
+  # Load model parameters from JSON and build models
+  model_params <- fromJSON(json_filepath)
+  # List of features for each model from model_params
+  features_both <- model_params$OLS_Step_Both
+  features_backward <- model_params$OLS_Step_Backward
+  features_forward <- model_params$OLS_Step_Forward
+
+  # Create a temporary dataframe for each model with the selected features
+  train_df_both <- train_df_linear[, c("price", features_both)]
+  test_df_both <- test_df_linear[, c("price", features_both)]
+
+  train_df_backward <- train_df_linear[, c("price", features_backward)]
+  test_df_backward <- test_df_linear[, c("price", features_backward)]
+
+  train_df_forward <- train_df_linear[, c("price", features_forward)]
+  test_df_forward <- test_df_linear[, c("price", features_forward)]
+
+  # Fit the linear models using the temporary dataframes
+  best_linear_model <- lm(price ~ ., data = train_df_both)
+  model_backward <- lm(price ~ ., data = train_df_backward)
+  model_forward <- lm(price ~ ., data = train_df_forward)
+
 } else {
   # Load model parameters from JSON and build models
   model_params <- fromJSON(json_filepath)
@@ -1580,25 +1602,41 @@ if (update_model_parameters) {
   # Create models based on the loaded features
   if (all(c("OLS_Step_Both", "OLS_Step_Backward", "OLS_Step_Forward") %in% names(model_params))) {
     # For each model type, create the model using the features stored in the JSON
-    model_both <- create_model(train_df_linear, 'price', model_params$OLS_Step_Both)
-    model_backward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Backward)
-    model_forward <- create_model(train_df_linear, 'price', model_params$OLS_Step_Forward)
+    # List of features for each model from model_params
+    features_both <- model_params$OLS_Step_Both
+    features_backward <- model_params$OLS_Step_Backward
+    features_forward <- model_params$OLS_Step_Forward
+
+    # Create a temporary dataframe for each model with the selected features
+    train_df_both <- train_df_linear[, c("price", features_both)]
+    test_df_both <- test_df_linear[, c("price", features_both)]
+
+    train_df_backward <- train_df_linear[, c("price", features_backward)]
+    test_df_backward <- test_df_linear[, c("price", features_backward)]
+
+    train_df_forward <- train_df_linear[, c("price", features_forward)]
+    test_df_forward <- test_df_linear[, c("price", features_forward)]
+
+    # Fit the linear models using the temporary dataframes
+    best_linear_model <- lm(price ~ ., data = train_df_both)
+    model_backward <- lm(price ~ ., data = train_df_backward)
+    model_forward <- lm(price ~ ., data = train_df_forward)
   } else {
     stop("Required model parameters are missing in the JSON file.")
   }
 }
 
 # Evaluate OLS_Step_Both
-df_results <- evaluate_model("OLS_Step_Both", model_both, train_df_linear, test_df_linear, target_var = 'price', df_results)
+df_results <- evaluate_model("OLS_Step_Both", best_linear_model, train_df_both, test_df_both, target_var = 'price', df_results)
 
 # Evaluate OLS_Step_Backward
-df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+df_results <- evaluate_model("OLS_Step_Backward", model_backward, train_df_backward, test_df_backward, target_var = 'price', df_results)
 
 # Evaluate OLS_Step_Forward
-df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_linear, test_df_linear, target_var = 'price', df_results)
+df_results <- evaluate_model("OLS_Step_Forward", model_forward, train_df_forward, test_df_forward, target_var = 'price', df_results)
 
 # featch all the dropped features from each of the models
-dropped_features_table <- get_dropped_features_table(model_backward, model_forward, model_both, train_df_linear)
+dropped_features_table <- get_dropped_features_table(model_backward, model_forward, best_linear_model, train_df_linear)
 ```
 
 ```{r display_stepwise_dropped_features, echo = FALSE, include = TRUE, results = 'asis'}
@@ -1608,12 +1646,23 @@ dropped_features_table
 ```{r display_stepwise_models, echo = TRUE, include = TRUE}
 # Display model results
 view_model_results(df_results, generate_table_caption("Step Model Additions", section = 6))
-best_linear_model <- linear_model_initial
 ```
 
-### 6.2 Best Linear Model 1
-### 6.3 Best Linear Model 2
-### 6.4 Model Comparison
+### 6.2 Best Linear Model
+
+```{r ols_best_model, echo = TRUE, include = TRUE}
+summary(best_linear_model)
+```
+
+## TODO some explaination here
+
+### 6.3 Model Comparison
+
+In our analysis of different regression models, we evaluated four models: OLS_linear, OLS_Step_Both, OLS_Step_Backward, and OLS_Step_Forward. These models were assessed based on several key metrics, including the sum of squared errors (SSE) for both the training and testing datasets, the coefficient of determination (R-squared) for both training and testing, root mean square error (RMSE) for training and testing, and mean absolute error (MAE) for training and testing.
+
+The OLS_Step_Both model emerged as a compelling choice due to its unique characteristics. While it exhibited a slight reduction in model performance compared to the OLS_linear model, it showcased a distinctive feature selection process. OLS_Step_Both effectively removes a substantial number of features, making it the least complex model among the four alternatives. This feature reduction enhances model interpretability and simplicity, which can be particularly valuable in scenarios where we seek to understand the most influential variables while maintaining competitive predictive power.
+
+The trade-off between complexity and performance makes OLS_Step_Both an attractive option for specific use cases. If the primary goal is to build a model that strikes a balance between simplicity and accuracy, the OLS_Step_Both model offers a pragmatic solution. However, after comprehensive consideration, we ultimately select the OLS_linear model as the preferred choice for our regression analysis. It delivers strong overall performance across various metrics, making it a robust and versatile model for our dataset and problem.
 
 ```{r reset_section6_counters, echo = FALSE, include = FALSE}
 # End of section so set both table and figure to 0
@@ -1714,32 +1763,189 @@ high_cooksd <- which(cooksd > threshold)
 text(high_cooksd, cooksd[high_cooksd], labels = high_cooksd, cex = 0.7, pos = 3)
 ```
 
-```{r reset_section7_counters, echo = FALSE, include = FALSE}
-# End of section so set both table and figure to 0
-fig_counter <- 0
-table_counter <- 0
-```
-
 #### 7.4.3 Filtering Outliers
 
 We filter the data points with Cook's distance >= 0.04, which is a reasonable threshold for identifying influential data points according to industry standards.
 
-```{r outlier_filtering, echo=FALSE, include = TRUE}
+```{r outlier_filtering, echo=TRUE, include = TRUE}
 # Define the threshold for Cook's distance, opting for slightly lower than .04 as it benefits the model performance to do a little bit lower
 threshold <- 0.04
 
 # Identify the indices of influential observations
 influential_obs <- which(cooksd > threshold)
 
+# Output what observations were influential prior to removal
 print(influential_obs)
+
+# Remove outliers from both datasets
+train_df_both <- train_df_both[-influential_obs, ]
+```
+
+
+```{r reset_section7_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
 ```
 
 ---
-## 8. Addressing Heteroscedasticity and Multicollinearity
-### 8.1 Detection of Heteroscedasticity
-### 8.2 Remedial Measures for Heteroscedasticity
+
+## 8. Addressing Linearity, Multicollinearity, Normality and Heteroscedasticity
+
+### 8.1 Examining the Non-Linearity of the Model
+
+
+```{r boxcox, echo = FALSE, include = TRUE, results = 'asis'}
+caption <- generate_figure_caption("Box-Cox Plot for Linear Model", section = 8)
+cat(caption)
+par(mfrow=c(1,1))
+# # Perform the Box-Cox transformation
+bc_result <- boxcox(best_linear_model, lambda=seq(-1,1,by=.1))
+optimal_lambda <- bc_result$x[which.max(bc_result$y)]
+```
+
+
+As we can observe from the box cox plot above, the lambda that give the highest log-likehood is `r optimal_lambda`. We transform Y using the log transformation as shown below.
+
+#### 8.1.1 Transformation of Model
+
+```{r transformation_model, echo = TRUE, include = TRUE}
+# Function to transform a single value back to the original scale
+inverse_transform <- function(value, lambda=optimal_lambda) {
+  if (lambda != 0) {
+    return((value * lambda + 1)^(1 / lambda))
+  } else {
+    return(exp(value))
+  }
+}
+
+# Function to calculate SSE, RMSE, MAE, and SST with or without inverse transformation
+calculate_metrics <- function(actual, predicted, lambda = optimal_lambda) {
+  if (lambda != 0) {
+    # Apply inverse transformation to actual and predicted values
+    actual_original <- inverse_transform(actual, lambda)
+    predicted_original <- inverse_transform(predicted, lambda)
+
+    # Calculate SSE, RMSE, MAE, and SST
+    sse <- sum((actual_original - predicted_original)^2)
+    rmse <- sqrt(sse / length(actual_original))
+    mae <- mean(abs(actual_original - predicted_original))
+    sst <- sum((actual_original - mean(actual_original))^2)
+  } else {
+    # Calculate SSE, RMSE, MAE, and SST without transformation
+    sse <- sum((actual - predicted)^2)
+    rmse <- sqrt(sse / length(actual))
+    mae <- mean(abs(actual - predicted))
+    sst <- sum((actual - mean(actual))^2)
+  }
+
+  return(list(sse = sse, rmse = rmse, mae = mae, sst = sst))
+}
+
+# Apply the Box-Cox transformation to the training and test data
+if (optimal_lambda != 0) {
+  transformed_price <- (train_df_both$price^optimal_lambda - 1) / optimal_lambda
+  transformed_test_price <- (test_df_both$price^optimal_lambda - 1) / optimal_lambda
+} else {
+  transformed_price <- log(train_df_both$price)
+  transformed_test_price <- log(test_df_both$price)
+}
+
+# Create a linear regression model using the transformed price
+transformed_model <- lm(transformed_price ~ ., data = dplyr::select(train_df_both, -price))
+
+summary(transformed_model)
+
+# Predict prices for training and test data using the transformed model
+predicted_train_transformed <- predict(transformed_model, newdata = train_df_both)
+predicted_test_transformed <- predict(transformed_model, newdata = test_df_both)
+
+# Calculate other metrics for training and test data
+metrics_train <- calculate_metrics(transformed_price, predicted_train_transformed, optimal_lambda)
+metrics_test <- calculate_metrics(transformed_test_price, predicted_test_transformed, optimal_lambda)
+
+# Calculate SSE for the training and test data without inverse transformation
+sse_train <- sum((transformed_price - predicted_train_transformed)^2)
+sse_test <- sum((transformed_test_price - predicted_test_transformed)^2)
+
+# Calculate R-squared for training and test data without inverse transformation
+sst_train <- sum((transformed_price - mean(transformed_price))^2)
+sst_test <- sum((transformed_test_price - mean(transformed_test_price))^2)
+
+r_squared_train <- 1 - (sse_train / sst_train)
+r_squared_test <- 1 - (sse_test / sst_test)
+
+# Create a dataframe to store the results
+df_results <- rbind(df_results, data.frame(
+  Model = "Transformed Model",
+  SSE_train = metrics_train$sse,
+  SSE_test = metrics_test$sse,
+  R_squared_train = r_squared_train,
+  R_squared_test = r_squared_test,
+  RMSE_train = metrics_train$rmse,
+  RMSE_test = metrics_test$rmse,
+  MAE_train = metrics_train$mae,
+  MAE_test = metrics_test$mae
+))
+
+# View the updated model results
+view_model_results(df_results, caption = generate_figure_caption("Transformation Model Addition", section = 8))
+```
+
+#### 8.2.2 Plots after Transformation
+
+```{r post_tranformation_plots, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Diagnostic Plots after Transformation", section = 8))
+par(mfrow=c(2,2))
+plot(transformed_model)
+```
+
+```{r boxplot_after_transformation, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Boxplot After Transformation", section = 8))
+par(mfrow=c(1,1))
+boxplot(transformed_model$residuals)
+```
 ### 8.3 Detection of Multicollinearity
-### 8.4 Remedial Methods for Multicollinearity
+
+#### 8.3.1 VIF-Based Multicollinearity Analysis
+
+In this section, we perform a Variance Inflation Factor (VIF)-based multicollinearity analysis. Multicollinearity refers to the situation where predictor variables in a regression model are highly correlated with each other, which can lead to instability in coefficient estimates and difficulties in interpreting the model. VIF helps us identify and mitigate multicollinearity by quantifying how much the variance of the estimated coefficients is increased due to the correlation between predictors.
+
+```{r vif, echo = TRUE, include = TRUE}
+vif_values <- vif(transformed_model)
+vif_values
+```
+
+We would typically define a VIF threshold (in this case, 10), which serves as a criterion to identify predictor variables with high VIF values, however, there are not any VIF's above this threshold meaning we do not have issues of multicollinearity.
+
+### 8.4 Detection of Heteroscedasticity
+
+#### 8.4.1 Breusch Pagan Test
+
+```{r breusch_pagan_test, echo = TRUE, include = TRUE}
+# Breusch-Pagan Test
+bp_test_results <- bptest(best_linear_model, studentize = FALSE)
+
+# Output the results of the Breusch-Pagan test
+bp_test_results
+```
+
+In our analysis, we conducted a Breusch-Pagan test to check for heteroscedasticity in our linear regression model, referred to as "best_linear_model." Heteroscedasticity refers to the situation where the spread of errors (residuals) in the model varies across different levels of the independent variables.
+
+The test results showed a very low p-value (p < 2.2e-16), indicating strong evidence against the null hypothesis suggesting that heteroscedasticity is present in the residuals of our model. This finding is essential as it implies that the variability of errors is not consistent across all levels of the predictor variables. Addressing heteroscedasticity may require adjustments to improve the model's reliability and interpretability.
+
+#### 8.4.2 Examining Scale Location Plot for Heteroscedasticity
+
+```{r scale_location_plot_for_hetero, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Plots Examining Heteroscedasticity", section = 8))
+par(mfrow=c(1,2))
+plot(best_linear_model, 3)
+boxplot(best_linear_model$residuals)
+```
+
+### 8.5 Remedial Measures for Heteroscedasticity
+
+---
 
 ## 9. Alternative Models
 ### 9.1 Regression Tree Model
