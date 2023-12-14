@@ -12,7 +12,7 @@ output:
 ---
 ## 1. Load and Review the Dataset
 ### 1.1 Data Loading
-```{r setup, include=FALSE}
+```{r setup, echo = TRUE, include=FALSE}
 # List of required packages, including 'here'
 required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
@@ -81,7 +81,7 @@ generate_table_caption <- function(caption, section) {
 ### Dataset Overview and Detailed Description
 The King County house sales dataset is a comprehensive collection of 21,613 observations, each representing a unique house sale. The dataset encompasses a variety of features that describe different aspects of the houses sold. Below is a detailed description of each variable in the dataset:
 
-```{r data_description, echo = FALSE, include = TRUE}
+```{r data_description, echo = TRUE, include = TRUE}
 # Create a data frame for the table
 data_description <- data.frame(
   Variable = c(
