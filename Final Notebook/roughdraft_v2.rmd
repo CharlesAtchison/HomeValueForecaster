@@ -2254,15 +2254,129 @@ plot(CvRidgeMod)
 
 ### 8.7 Lasso Regression
 
+```{r lasso_regression, echo = TRUE, include = TRUE}
+LassoMod <- glmnet(x, y, alpha = 1, nlambda = 100, lambda.min.ratio = 0.0001)
+CvLassoMod <- cv.glmnet(x, y, alpha = 1, nlambda = 100, lambda.min.ratio = 0.0001)
+
+# Find the best lambda for Lasso
+best.lambda.lasso <- CvLassoMod$lambda.min
+print(paste0("Best Lambda for Lasso: ", best.lambda.lasso))
+
+# Add coefficients to dataframe for Lasso
+coefficients_df <- create_coefficients_df(
+  model = coefficients(LassoMod, s = best.lambda.lasso),
+  model_name = "Lasso Model",
+  coefficients_df = coefficients_df
+)
+```
+
+```{r compare_coefficients_from_lasso, echo = TRUE, include = TRUE}
+# Fetch the coefficients to compare results between Lasso and other models
+model_names_to_match <- c("Lasso Model", "Weighted Transformed Model 200 Iterations")
+
+# Use the subset function to select rows where Model_Name matches any of the model names in the list
+selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
+
+# Identify columns with NA values in the selected subset of rows
+cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
+
+# Remove columns with NA values from the selected subset
+selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(selected_rows, caption = generate_table_caption("Lasso and OLS model comparison", section = 8))
+```
+
+```{r plot_lasso_regression, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Lasso Regression Plot", section = 8))
+# Plot cross-validated error for Lasso
+par(mfrow = c(1, 1))
+plot(CvLassoMod)
+```
+
+
 ### 8.8 Elastic Net Regression
 
-### Huber
+```{r elastic_net_regression, echo = TRUE, include = TRUE}
+# Set alpha for Elastic Net
+alpha_elastic_net <- 0.5
+
+# Problem 8.5: Run Elastic Net Regression
+ElasticNetMod <- glmnet(x, y, alpha = alpha_elastic_net, nlambda = 100, lambda.min.ratio = 0.0001)
+CvElasticNetMod <- cv.glmnet(x, y, alpha = alpha_elastic_net, nlambda = 100, lambda.min.ratio = 0.0001)
+
+# Find the best lambda for Elastic Net
+best.lambda.elastic_net <- CvElasticNetMod$lambda.min
+print(paste0("Best Lambda for Elastic Net: ", best.lambda.elastic_net))
+
+# Add coefficients to dataframe for Elastic Net
+coefficients_df <- create_coefficients_df(
+  model = coefficients(ElasticNetMod, s = best.lambda.elastic_net),
+  model_name = "Elastic Net Model",
+  coefficients_df = coefficients_df
+)
+```
+
+```{r compare_coefficients_from_elastic_net, echo = TRUE, include = TRUE, results = 'asis'}
+# Fetch the coefficients to compare results between Elastic Net and other models
+model_names_to_match <- c("Elastic Net Model", "Weighted Transformed Model 200 Iterations")
+
+# Use the subset function to select rows where Model_Name matches any of the model names in the list
+selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
+
+# Identify columns with NA values in the selected subset of rows
+cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
+
+# Remove columns with NA values from the selected subset
+selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(selected_rows, caption = generate_table_caption("Elastic Net and OLS model comparison", section = 8))
+```
+
+```{r plot_elastic_net_regression, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Elastic Net Regression Plot", section = 8))
+# Plot cross-validated error for Elastic Net
+par(mfrow = c(1, 1))
+plot(CvElasticNetMod)
+```
+
+### 8.9 Huber Robust Regression
+
+```{r huber_regression, echo = TRUE, include = TRUE}
+# Run Huber Regression using rlm
+HuberMod <- rlm(log(price) ~ ., data = train_df_both)
+
+# Add coefficients to dataframe for Huber
+coefficients_df <- create_coefficients_df(
+  model = HuberMod,
+  model_name = "Huber Model",
+  coefficients_df = coefficients_df
+)
+```
+
+```{r compare_coefficients_from_huber, echo = TRUE, include = TRUE}
+# Fetch the coefficients to compare results between Huber and other models
+model_names_to_match <- c("Huber Model", "Weighted Transformed Model 200 Iterations")
+
+# Use the subset function to select rows where Model_Name matches any of the model names in the list
+selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
+
+# Identify columns with NA values in the selected subset of rows
+cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
+
+# Remove columns with NA values from the selected subset
+selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(selected_rows, caption = generate_table_caption("Huber and OLS model comparison", section = 8))
+```
 
 ### 8. Coefficients Examination
 
 ```{r}
 # Assuming linear_model_initial and transformed_model are linear model objects you have fitted
-print(coefficients_df)
+datatable(selected_rows, caption = generate_table_caption("All Model Coefficients", section = 8))
 ```
 
 ---
