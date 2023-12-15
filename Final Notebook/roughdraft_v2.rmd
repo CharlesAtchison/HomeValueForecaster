@@ -18,7 +18,8 @@ required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
   "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics", "kableExtra",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom"
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom", "neuralnet",
+  "pscl"
 )
 
 # Establish CRAN for package installs
@@ -675,7 +676,7 @@ In Section 6, we will employ a stepwise model selection approach to identify the
 
 Ensuring the validity of linear regression assumptions is vital, and we will conduct thorough checks in Section 7. This includes assessing the linearity assumption (Section 7.1), examining the normality of residuals (Section 7.2), and verifying homoscedasticity (constant variance) (Section 7.3).
 
-In Section 8, we will address issues related to heteroscedasticity and multicollinearity. Initially, we will detect and analyze heteroscedasticity in Section 8.1, followed by the presentation of remedial measures in Section 8.2. Subsequently, Section 8.3 will focus on the detection of multicollinearity, with Section 8.4 offering solutions to mitigate its impact.
+In Section 8, we will address issues related to linearity, normality, heteroscedasticity and multicollinearity. We will detect and analyze heteroscedasticity in Section 8, with the presentation of remedial measures.
 
 As we progress, we will explore alternative modeling techniques in Section 9. This includes the implementation of a regression tree model (Section 9.1), a neural network model (Section 9.2), and a support vector machine (SVM) model (Section 9.3). If applicable, we will also consider a logistic regression model (Section 9.4). These alternative models will provide valuable insights and potential enhancements to our predictive capabilities.
 
@@ -2092,7 +2093,7 @@ bptest_result
 iteration <- 1
 
 #TODO change back to 200
-while (iteration < 1 && bptest_result$p.value < 0.05) {
+while (iteration < 200 && bptest_result$p.value < 0.05) {
   # Calculate new absolute residuals
   abs_residuals_new <- abs(transformed_model_weighted$residuals)
 
@@ -2263,9 +2264,11 @@ datatable(
 )
 ```
 
+#### Some Explaination about the Ridge regression here
+
 ```{r plot_ridge_regression, echo = FALSE, include = TRUE, results = 'asis'}
-cat(generate_figure_caption("Ridge Regression Plot", section = 8))
 # Plot cross-validated error
+cat(generate_figure_caption("Ridge Regression Plot", section = 8))
 par(mfrow = c(1, 1))
 plot(CvRidgeMod)
 ```
@@ -2419,7 +2422,7 @@ datatable(
 ```
 
 
-### 8. Coefficients Examination
+### 8.10 Coefficients Examination
 
 ```{r display_all, echo = FALSE, include = TRUE}
 # Display the selected rows without columns containing NA values in a scrollable dataframe
@@ -2435,12 +2438,611 @@ datatable(
 )
 ```
 
+#### 10.1 Coefficient Comparison Function
+
+This function is designed to provide a comprehensive comparison of regression model coefficients. It specifically targets scenarios where multiple models have been fit to the same dataset, and there's a need to understand the variability or consistency of these models in terms of their coefficients. This comparison is crucial in areas like feature importance analysis, model stability assessment, and in addressing multicollinearity, normality, and other statistical aspects.
+
+##### 10.1.1 Function Overview
+
+The `calculate_total_coefficient_differences_for_all` function iterates over each model in a given dataframe, calculates the sum of absolute differences in coefficients between that model and a predefined list of comparison models, and then adds these sums as a new column in the dataframe. This approach allows for a direct, quantitative comparison of how each model's coefficients differ from those of other specified models.
+
+##### 10.1.2 Detailed Utility of Function
+
+- **Model Stability Analysis:** It provides insights into the stability of coefficients across different models. Large differences might indicate model instability or sensitivity to certain features.
+
+- **Feature Importance Consistency:** By comparing coefficient magnitudes across models, it can help assess the consistency of feature importance rankings.
+
+- **Addressing Statistical Issues:** It aids in evaluating how different models react to multicollinearity and other statistical concerns, especially if the coefficients vary significantly between models.
+
+- **Model Selection Guidance:** The function can guide model selection by highlighting models with similar or drastically different behavior in terms of their coefficients.
+
+
+```{r coefficients_calculations, echo = TRUE, include = TRUE}
+# List of comparison models
+comparison_model_names <- c("Huber Model", "Ridge Model", "Lasso Model", "EN Model")
+
+# Function to calculate the total sum of absolute differences in coefficients for each model
+calculate_total_coefficient_differences_for_all <- function(coefficients_df, comparison_models) {
+  # Get all model names
+  all_model_names <- coefficients_df$Model_Name
+
+  # Initialize a named numeric vector to store the sum of differences for each model
+  total_diffs <- setNames(numeric(length(all_model_names)), all_model_names)
+
+  # Iterate over each model in coefficients_df
+  for (target_model in all_model_names) {
+    target_coeffs <- coefficients_df[coefficients_df$Model_Name == target_model, -1]
+    total_diff <- 0  # Initialize total difference for this model
+
+    # Calculate sum of absolute differences with each comparison model
+    for (model in comparison_models) {
+      comparison_coeffs <- coefficients_df[coefficients_df$Model_Name == model, -1]
+      common_features <- intersect(names(target_coeffs), names(comparison_coeffs))
+      abs_diff <- abs(target_coeffs[common_features] - comparison_coeffs[common_features])
+      total_diff <- total_diff + sum(abs_diff, na.rm = TRUE)
+    }
+
+    total_diffs[target_model] <- total_diff
+  }
+
+  return(total_diffs)
+}
+
+# Calculate the total differences for all models
+model_diffs <- calculate_total_coefficient_differences_for_all(coefficients_df, comparison_model_names)
+
+# Add the calculated differences as a new column in the coefficients_df
+coefficients_df$total_diff <- model_diffs[coefficients_df$Model_Name]
+
+# Move the new column to the second position
+coefficients_df <- coefficients_df[, c("Model_Name", "total_diff", setdiff(names(coefficients_df), c("Model_Name", "total_diff")))]
+```
+
+```{r display_comparisons, echo = FALSE, include = TRUE}
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(
+  coefficients_df,
+  caption = generate_table_caption("Total Calculated Difference Coefficients Comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    scrollY = TRUE,
+    autoWidth = TRUE,
+    pageLength = -1  # Show all rows without pagination
+  )
+)
+```
+
+### 8.11 Detailed Coefficient Analysis
+
+The results compare various regression models based on the total sum of absolute differences in their coefficients when compared to a set of reference models: "Huber Model," "Ridge Model," "Lasso Model," and "EN Model." This analysis helps determine which model is most consistent with the reference models in terms of coefficient values, which can be indicative of their effectiveness in addressing diagnostic issues like multicollinearity, outliers, and model stability. Let's break down these results for a detailed analysis:
+
+#### 8.11.1 "Initial OLS Model"
+With a total difference of approximately 319 million, this model shows a substantial deviation in coefficients compared to the reference models. This significant difference suggests that the "Initial OLS Model" may have issues with multicollinearity or outliers that the reference models have addressed more effectively.
+
+#### 8.11.2 "OLS w/o corr" and Other OLS Variants
+Similar to the "Initial OLS Model," these OLS-based models ("Inital Step Both," "Step Forward," "Step Backward," "OLS Both outliers") have very high total differences (ranging from around 321 million to 470 million). This indicates that these models, despite their variations, have not substantially improved in aligning their coefficients with the reference models. They likely still struggle with issues like multicollinearity or outlier sensitivity.
+
+#### 8.11.3 "Transformed Model" and "WT Model"
+These models show a drastic reduction in total differences (1824 and 1536, respectively), indicating a significant improvement over the basic OLS models. The transformations or adjustments made in these models appear to have aligned their coefficients more closely with the reference models, suggesting better handling of diagnostic issues.
+
+#### 8.11.4 "WT Model 200"
+After 200 iterations of Weighted Least Squares (WLS) regression, this model shows a remarkable improvement with a total difference of only 78. This suggests that iterative re-weighting has significantly enhanced the model's alignment with the reference models, potentially indicating effective handling of heteroscedasticity and outliers.
+
+#### 8.11.5 "Ridge Model," "Lasso Model," "EN Model," and "Huber Model"
+These models have the lowest total differences (ranging from 51 to 139), indicating a very close alignment with each other. This consistency suggests that these models are likely very effective in addressing multicollinearity and outliers. Their regularization techniques (Ridge, Lasso, Elastic Net) or robust regression approach (Huber) seem to stabilize the coefficient estimates substantially.
+
+```{r reset_section8_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
 ---
 
 ## 9. Alternative Models
 ### 9.1 Regression Tree Model
+
+```{r regression_tree}
+# Load and prepare data for this section
+train_df_logis <- train_df_non_linear
+test_df_logis <- test_df_non_linear
+
+
+# Create data frames for regression tree analysis
+# Remove 'price_cat' and keep 'price' in the datasets
+train_df_reg <- train_df_logis[, !names(train_df_logis) %in% "price_cat"]
+test_df_reg <- test_df_logis[, !names(test_df_logis) %in% "price_cat"]
+
+# Define a broader range of hyperparameters to search
+tuneGrid <- expand.grid(
+  cp = seq(0.001, 0.1, by = 0.001)
+)
+
+# Create a custom tuning grid for rpart
+customControl <- trainControl(
+  method = "cv",
+  number = 5,
+  search = "grid",
+  verboseIter = FALSE
+)
+
+# Perform hyperparameter tuning with custom control
+model <- train(
+  price ~ .,
+  data = train_df_reg,
+  method = "rpart",
+  trControl = customControl,
+  tuneGrid = tuneGrid
+)
+
+# Make predictions
+p.rpart_train <- predict(model, newdata = train_df_reg)
+p.rpart_test <- predict(model, newdata = test_df_reg)
+
+# Calculate metrics for training dataset
+MAE_train <- mae(train_df_reg$price, p.rpart_train)
+SSE_train <- sum((train_df_reg$price - p.rpart_train)^2)
+R_squared_train <- R2(train_df_reg$price, p.rpart_train)
+RMSE_train <- rmse(train_df_reg$price, p.rpart_train)
+
+# Calculate metrics for testing dataset
+MAE_test <- mae(test_df_reg$price, p.rpart_test)
+SSE_test <- sum((test_df_reg$price - p.rpart_test)^2)
+R_squared_test <- R2(test_df_reg$price, p.rpart_test)
+RMSE_test <- rmse(test_df_reg$price, p.rpart_test)
+
+# Append the results to df_results
+df_results <- rbind(df_results, data.frame(
+  Model = "Regression Tree",
+  SSE_train = SSE_train,
+  SSE_test = SSE_test,
+  R_squared_train = R_squared_train,
+  R_squared_test = R_squared_test,
+  RMSE_train = RMSE_train,
+  RMSE_test = RMSE_test,
+  MAE_train = MAE_train,
+  MAE_test = MAE_test,
+  stringsAsFactors = FALSE
+))
+
+# View Model Results
+view_model_results(df_results, generate_table_caption("Regression Tree Model Addition", section = 9))
+```
+
 ### 9.2 Neural Network Model
+
+```{r keras_NN}
+
+# Define a normalization function
+normalize_data <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+# Function to prepare the dataset
+prepare_dataset <- function(df) {
+  df$waterfront <- as.numeric(df$waterfront_1)
+  selected_columns <- setdiff(names(df), c("season", "price_cat", "waterfront_0", "waterfront_1"))
+  df_normalized <- as.data.frame(lapply(df[selected_columns], normalize_data))
+  return(df_normalized)
+}
+
+# Function to rescale normalized data back to original scale
+rescale_to_original <- function(x, min_val, max_val) {
+  return((x * (max_val - min_val)) + min_val)
+}
+
+# Define model builder
+build_model <- function(hp) {
+  model <- keras_model_sequential() %>%
+    layer_dense(units = hp$Int('units_1', min_value = 32, max_value = 128, step = 32),
+                activation = 'relu', input_shape = ncol(train_data) - 1) %>%
+    layer_dense(units = hp$Int('units_2', min_value = 16, max_value = 64, step = 16),
+                activation = 'relu') %>%
+    # Add more layers if needed
+    layer_dense(units = 1)
+
+  model %>% compile(
+    optimizer = optimizer_adam(hp$Float('learning_rate', 1e-4, 1e-2, sampling = 'log')),
+    loss = 'mean_squared_error',
+    metrics = c('mean_absolute_error')
+  )
+  return(model)
+}
+
+train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_price, original_test_price) {
+  # Initialize variables to store the best model and its lowest validation MAE
+  best_model <- NULL
+  lowest_val_mae <- Inf
+  best_batch_size <- NULL  # Store the best batch size
+  best_epochs <- NULL  # Store the best number of epochs
+  # Smaller batch sizes drastically increase computation required
+  batch_sizes <- c(50, 60, 70, 80, 90, 100, 110, 120, 130)  # Different batch sizes to experiment with
+  epochs_list <- c(50, 100, 150, 200, 250)  # Different numbers of epochs to experiment with
+
+  for (batch_size in batch_sizes) {
+    for (epochs in epochs_list) {
+      # Define a complex Keras model with multiple layers
+      model <- keras_model_sequential() %>%
+        layer_dense(units = 256, activation = 'relu', input_shape = ncol(train_data) - 1) %>%
+        layer_dropout(rate = 0.3) %>% # Accounts for multicollinearity and prevents overfit
+        layer_dense(units = 128, activation = 'relu') %>%
+        layer_dropout(rate = 0.3) %>%
+        layer_dense(units = 64, activation = 'relu') %>%
+        layer_dense(units = 32, activation = 'relu') %>%
+        layer_dense(units = 16, activation = 'relu') %>%
+        layer_dense(units = 8, activation = 'relu') %>%
+        layer_dense(units = 4, activation = 'relu') %>%
+        layer_dense(units = 2, activation = 'relu') %>%
+        layer_dense(units = 1)
+
+      # Compile the model
+      model %>% compile(
+        loss = 'mean_squared_error',
+        optimizer = 'adam',
+        metrics = c('mean_absolute_error')
+      )
+
+      # Fit the model to training data
+      history <- model %>% fit(
+        x = as.matrix(train_data[, -which(names(train_data) == "price")]),
+        y = train_data$price,
+        epochs = epochs,
+        batch_size = batch_size,
+        validation_split = 0.2  # Use 20% of training data for validation
+      )
+
+      # Check the performance on the validation set
+      val_mae <- min(history$metrics$val_mean_absolute_error)
+      if (val_mae < lowest_val_mae) {
+        lowest_val_mae <- val_mae
+        best_model <- model
+        best_batch_size <- batch_size
+        best_epochs <- epochs
+      }
+    }
+  }
+
+  # Print the best hyperparameters and their correlation
+  cat("Best Batch Size:", best_batch_size, "\n")
+  cat("Best Number of Epochs:", best_epochs, "\n")
+
+  # Make predictions on the training and test data
+  train_predictions <- predict(best_model, x = as.matrix(train_data[, -which(names(train_data) == "price")]))
+  test_predictions <- predict(best_model, x = as.matrix(test_data[, -which(names(test_data) == "price")]))
+
+  # Rescale predictions back to original scale
+  rescaled_train_predictions <- rescale_to_original(train_predictions, min(original_train_price), max(original_train_price))
+  rescaled_test_predictions <- rescale_to_original(test_predictions, min(original_test_price), max(original_test_price))
+
+  # Calculate various performance metrics
+  metrics <- list(
+    mae_train = mean(abs(rescaled_train_predictions - original_train_price)),
+    mae_test = mean(abs(rescaled_test_predictions - original_test_price)),
+    RMSE_train = sqrt(mean((rescaled_train_predictions - original_train_price)^2)),
+    RMSE_test = sqrt(mean((rescaled_test_predictions - original_test_price)^2)),
+    SSE_train = sum((rescaled_train_predictions - original_train_price)^2),
+    SSE_test = sum((rescaled_test_predictions - original_test_price)^2),
+    correlation_train = cor(rescaled_train_predictions, original_train_price),
+    correlation_test = cor(rescaled_test_predictions, original_test_price),
+    r_squared_train = cor(rescaled_train_predictions, original_train_price)^2,
+    r_squared_test = cor(rescaled_test_predictions, original_test_price)^2
+  )
+
+  print(paste("Model Correlation:", metrics$correlation_test))
+
+  return(metrics)
+}
+# Define the training and test datasets
+train_df_logis <- train_df_non_linear
+test_df_logis <- test_df_non_linear
+
+# Combine train and test data for normalization
+combined_df <- rbind(train_df_logis, test_df_logis)
+
+# Normalize the combined data
+combined_norm <- prepare_dataset(combined_df)
+
+# Split the normalized data back into train and test sets
+train_norm <- combined_norm[seq_len(nrow(train_df_logis)), ]
+test_norm <- combined_norm[(nrow(train_df_logis) + 1):nrow(combined_norm), ]
+
+# Original non-normalized price data
+original_train_price <- train_df_non_linear$price
+original_test_price <- test_df_non_linear$price
+
+# Train and evaluate the model
+if (update_model_parameters) {
+  library(keras)
+  library(reticulate)
+  # Import python as the backend for using Keras
+  use_python(python = "C:\\Users\\Charl\\AppData\\Local\\Programs\\Python\\Python39\\python.exe", required = TRUE)
+  # Fetch metrics
+  nn_metrics <- train_and_evaluate_keras_nn(train_norm, test_norm, original_train_price, original_test_price)
+  # Code to update model parameters in JSON
+  update_model_json("NeuralNetwork", nn_metrics, json_filepath)
+} else {
+  # Code to load model parameters from JSON
+  model_params <- fromJSON(json_filepath)
+  nn_metrics <- model_params$NeuralNetwork
+}
+
+# Prepare results for the dataframe
+nn_model_row <- data.frame(
+  Model = "Neural Network",
+  SSE_train = nn_metrics$SSE_train,
+  SSE_test = nn_metrics$SSE_test,
+  R_squared_train = nn_metrics$r_squared_train,
+  R_squared_test = nn_metrics$r_squared_test,
+  RMSE_train = nn_metrics$RMSE_train,
+  RMSE_test = nn_metrics$RMSE_test,
+  MAE_train = nn_metrics$mae_train,
+  MAE_test = nn_metrics$mae_test,
+  stringsAsFactors = FALSE
+)
+
+# Append the new row to df_results
+df_results <- rbind(df_results, nn_model_row)
+view_model_results(df_results, generate_table_caption("Neural Network Model Addition", section = 9))
+```
+
 ### 9.4 Logistic Regression
+
+#### 9.4.1 Data Processing
+
+```{r logistic_data_processing, echo = TRUE, include = TRUE}
+# Define the training and test datasets
+train_df_logis <- train_df_non_linear
+test_df_logis <- test_df_non_linear
+
+# Convert "price" to binary class labels based on median
+train_df_logis$price <- ifelse(train_df_logis$price > median(train_df_logis$price), 1, 0)
+test_df_logis$price <- ifelse(test_df_logis$price > median(test_df_logis$price), 1, 0)
+
+# Convert "price" to factor with labels "low" and "high"
+train_df_logis$price <- factor(train_df_logis$price, levels = c("0", "1"), labels = c("low", "high"))
+test_df_logis$price <- factor(test_df_logis$price, levels = c("0", "1"), labels = c("low", "high"))
+```
+
+In this section, we preprocess the data for binary logistic regression. We load the necessary libraries and define the training and test datasets. The "price" column is transformed into binary class labels based on the median, and it is converted to a factor with labels "low" and "high."
+
+#### 9.4.2 Data Structure and Summary
+
+```{r logistic_structure_and_summary, echo = TRUE, include = TRUE}
+# Display structure and head of the datasets
+str(train_df_logis)
+str(test_df_logis)
+head(train_df_logis)
+head(test_df_logis)
+
+# Display unique values of "price" in both datasets
+unique(train_df_logis$price)
+unique(test_df_logis$price)
+```
+
+
+In this section, we examine the structure and summary of the datasets. We display the structure, head, and unique values of the "price" column in both the training and test datasets.
+
+#### 9.4.3 Data Visualization
+
+```{r data_visualization_logistic_regression_1, echo = FALSE, include = TRUE, results = 'asis'}
+# Create histograms of "price" in both datasets
+cat(generate_figure_caption("Histogram of Train Price Data", section = 9))
+hist(as.numeric(train_df_logis$price))
+```
+
+
+
+```{r data_visualization_logistic_regression_2, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Historgram of Test Price Data", section = 9))
+hist(as.numeric(test_df_logis$price))
+```
+
+This section includes histograms of the `price` column in both datasets to visualize the distribution of class labels.
+
+#### 9.4.4 Binary Logistic Regression
+
+```{r fit_binary_logisitic, echo = TRUE, include = TRUE}
+# Fit a binary logistic regression model
+fit_logistic <- glm(price ~ ., family = binomial, data = train_df_logis)
+summary(fit_logistic)
+```
+
+Here, we fit a binary logistic regression model using the `glm` function. We specify the family parameter as "binomial" for logistic regression and provide the training data. We then display a summary of the fitted model.
+
+
+#### 9.4.5 Deviance and Hypothesis Testing
+
+```{r logistic_deviance_hyp, echo = TRUE, include = TRUE}
+# Compute the null and residual deviances
+summary_fit_logistic <- summary(fit_logistic)
+null_deviance <- summary_fit_logistic$null.deviance
+residual_deviance <- summary_fit_logistic$deviance
+df_null <- summary_fit_logistic$df.null
+df_residual <- summary_fit_logistic$df.residual
+
+# Calculate the difference in deviances and degrees of freedom
+diff_deviances <- null_deviance - residual_deviance
+diff_df <- df_null - df_residual
+
+# Perform a chi-squared test to assess variable importance
+p_value <- 1 - pchisq(diff_deviances, diff_df)
+
+# Determine if variables are important based on p-value
+if (p_value < 0.05) {
+  conclusion <- "Variables are important (Reject Null Hypothesis)"
+} else {
+  conclusion <- "Variables are not important (Fail to Reject Null Hypothesis)"
+}
+```
+
+In this subsection, we compute the null and residual deviance's of the logistic regression model. We then calculate the difference in deviance's and degrees of freedom to perform a chi-squared test to assess the importance of variables. The result is used to determine whether variables are important or not.
+
+
+#### 9.4.6 Stepwise Selection with AIC
+
+```{r logistic_stepwise_aic, echo = TRUE, include = TRUE}
+# Function to perform and evaluate stepwise logistic regression
+perform_and_evaluate_logistic_regression <- function(train_df, test_df, fit_logistic_step) {
+  # Model evaluation on training data
+  true_labels_train <- ifelse(train_df$price == "high", 1, 0)
+  predicted_probabilities_train <- predict(fit_logistic_step, train_df, type = "response")
+  predictions_train <- ifelse(predicted_probabilities_train > 0.5, 1, 0)
+  confusion_matrix_train <- caret::confusionMatrix(as.factor(predictions_train), as.factor(true_labels_train))
+
+  # Accuracy and other metrics from confusion matrix for training data
+  accuracy_train <- confusion_matrix_train$overall['Accuracy']
+  precision_train <- confusion_matrix_train$byClass['Precision']
+  recall_train <- confusion_matrix_train$byClass['Recall']
+  F1_train <- 2 * (precision_train * recall_train) / (precision_train + recall_train)
+
+  # Pseudo R-squared for training data
+  pseudo_r_squared_train <- 1 - fit_logistic_step$deviance / fit_logistic_step$null.deviance
+
+  # Model evaluation on test data
+  true_labels_test <- ifelse(test_df$price == "high", 1, 0)
+  predicted_probabilities_test <- predict(fit_logistic_step, test_df, type = "response")
+  predictions_test <- ifelse(predicted_probabilities_test > 0.5, 1, 0)
+  confusion_matrix_test <- caret::confusionMatrix(as.factor(predictions_test), as.factor(true_labels_test))
+
+  # Accuracy and other metrics from confusion matrix for test data
+  accuracy_test <- confusion_matrix_test$overall['Accuracy']
+  precision_test <- confusion_matrix_test$byClass['Precision']
+  recall_test <- confusion_matrix_test$byClass['Recall']
+  F1_test <- 2 * (precision_test * recall_test) / (precision_test + recall_test)
+
+  # Pseudo R-squared for test data
+  pseudo_r_squared_test <- 1 - fit_logistic_step$deviance / fit_logistic_step$null.deviance
+
+  # Extracting feature names from the model formula
+  feature_names <- all.vars(formula(fit_logistic_step))
+
+  # Remove the response variable name ('price') from the list
+  feature_names <- setdiff(feature_names, "price")
+
+  # Store all results in a list
+  results <- list(
+    features = feature_names,
+    coefficients = coef(fit_logistic_step),
+    accuracy_train = accuracy_train,
+    precision_train = precision_train,
+    recall_train = recall_train,
+    F1_train = F1_train,
+    pseudo_r_squared_train = pseudo_r_squared_train,
+    accuracy_test = accuracy_test,
+    precision_test = precision_test,
+    recall_test = recall_test,
+    F1_test = F1_test,
+    pseudo_r_squared_test = pseudo_r_squared_test
+  )
+
+  return(results)
+}
+
+if (update_model_parameters) {
+  # Perform and evaluate logistic regression, then store results
+  # Step fit the model
+  fit_logistic_step <- step(fit_logistic, trace = 0)
+
+  logistic_results <- perform_and_evaluate_logistic_regression(train_df_logis, test_df_logis, fit_logistic_step)
+
+  # Prepare a list of logistic regression parameters and metrics for JSON update
+  logistic_json_data <- list(
+    features = logistic_results$features,
+    coefficients = logistic_results$coefficients,
+    accuracy_train = logistic_results$accuracy_train,
+    precision_train = logistic_results$precision_train,
+    recall_train = logistic_results$recall_train,
+    F1_train = logistic_results$F1_train,
+    pseudo_r_squared_train = logistic_results$pseudo_r_squared_train,
+    accuracy_test = logistic_results$accuracy_test,
+    precision_test = logistic_results$precision_test,
+    recall_test = logistic_results$recall_test,
+    F1_test = logistic_results$F1_test,
+    pseudo_r_squared_test = logistic_results$pseudo_r_squared_test
+  )
+
+  # Update logistic regression results in JSON
+  update_model_json("StepwiseLogisticRegression", logistic_json_data, json_filepath)
+} else {
+  # Load logistic regression results from JSON
+  loaded_data <- fromJSON(json_filepath)$StepwiseLogisticRegression
+
+  # Check if features are correctly loaded
+  if (is.null(loaded_data$features) || length(loaded_data$features) == 0) {
+    stop("No features found in the loaded model data.")
+  }
+
+  # Rebuild the formula from the loaded features
+  formula_string <- paste("price ~", paste(loaded_data$features, collapse = " + "))
+  fit_logistic_step <- glm(as.formula(formula_string), family = binomial, data = train_df_logis)
+  logistic_results <- perform_and_evaluate_logistic_regression(train_df_logis, test_df_logis, fit_logistic_step)
+}
+
+# Prepare results for the dataframe
+logistic_model_row <- data.frame(
+  Model = "Stepwise Logistic Regression",
+  Accuracy_train = logistic_results$accuracy_train,
+  Accuracy_test = logistic_results$accuracy_test,
+  Precision_train = logistic_results$precision_train,
+  Precision_test = logistic_results$precision_test,
+  Recall_train = logistic_results$recall_train,
+  Recall_test = logistic_results$recall_test,
+  F1_train = logistic_results$F1_train,
+  F1_test = logistic_results$F1_test,
+  Pseudo_R_squared_train = logistic_results$pseudo_r_squared_train,
+  Pseudo_R_squared_test = logistic_results$pseudo_r_squared_test,
+  stringsAsFactors = FALSE
+)
+
+summary(fit_logistic_step)
+```
+
+```{r logistic_regression_results, echo = FALSE, include = TRUE}
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(
+  logistic_model_row,
+  caption = generate_table_caption("Logistic Regression Performance Table", section = 9),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    scrollY = TRUE,
+    autoWidth = TRUE,
+    pageLength = -1  # Show all rows without pagination
+  )
+)
+```
+
+
+#### 9.4.7 Stepwise Logistic Regression Model Performance
+
+A "Stepwise Logistic Regression" model was applied to predict a binary outcome. The model demonstrated good performance on both the training and test datasets.
+
+#### 9.4.8 Training Dataset Metrics
+
+For the training dataset, the model's performance metrics were as follows:
+
+- **Accuracy:** The accuracy of the model was found to be approximately 90.79%, indicating that it correctly classified a large proportion of the observations.
+
+- **Precision:** The precision, which measures the proportion of true positive predictions among all positive predictions, was approximately 89.81%. This suggests that when the model predicted a positive outcome, it was accurate nearly 90% of the time.
+
+- **Recall:** The recall, also known as sensitivity, was about 91.13%. This metric assesses the model's ability to correctly identify true positive cases out of all actual positive cases. In this context, the model effectively captured a significant portion of the true positive cases.
+
+- **F1-Score:** The F1-score, a balanced measure of precision and recall, was found to be approximately 90.31%. This score indicates a good balance between the ability to make accurate positive predictions and capturing actual positive cases.
+
+- **Pseudo R-squared:** The pseudo R-squared value, which measures the goodness of fit of the logistic regression model, was approximately 90.41%. A higher pseudo R-squared suggests that the model explains a significant portion of the variance in the data.
+
+#### 9.4.9 Test Dataset Metrics
+
+When evaluated on the test dataset, the "Stepwise Logistic Regression" model displayed similar performance trends. The model's performance metrics on the test dataset were as follows:
+
+- **Accuracy:** The accuracy on the test data was approximately 89.45%.
+
+- **Precision:** Precision on the test data was about 89.88%.
+
+- **Recall:** Recall on the test data was approximately 91.13%.
+
+- **F1-Score:** The F1-score on the test dataset was approximately 89.88%, indicating that the model maintained a balanced performance between precision and recall.
+
+- **Pseudo R-squared:** The pseudo R-squared value for the test dataset was about 67.68%, suggesting that the model explained a substantial portion of the variance in the test data, although slightly lower than on the training data.
 
 ## 10. Model Evaluation on Test Data
 ### 10.1 Test Data Performance Metrics

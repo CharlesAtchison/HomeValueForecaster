@@ -2062,11 +2062,6 @@ train_and_evaluate_keras_nn <- function(train_data, test_data, original_train_pr
   return(metrics)
 }
 
-
-# Load and prepare data
-train_df_logis <- train_df_non_linear
-test_df_logis <- test_df_non_linear
-
 # Combine train and test data for normalization
 combined_df <- rbind(train_df_logis, test_df_logis)
 
