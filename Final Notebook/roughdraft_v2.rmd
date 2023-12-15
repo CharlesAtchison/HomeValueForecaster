@@ -1530,7 +1530,7 @@ linear_model_initial <- lm(price ~ ., data = train_df_linear)
 # Add new coefficients to dataframe
 coefficients_df <- create_coefficients_df(
   model = linear_model_initial,
-  model_name = "Initial OLS Model High Corr Cols Removed",
+  model_name = "OLS w/o corr",
   coefficients_df = coefficients_df
 )
 ```
@@ -1685,7 +1685,7 @@ if (update_model_parameters) {
 # Add coefficients to dataframe
 coefficients_df <- create_coefficients_df(
   model = best_linear_model,
-  model_name = "Inital Step Both (best model)",
+  model_name = "Inital Step Both",
   coefficients_df = coefficients_df
 )
 
@@ -1864,7 +1864,7 @@ df_results <- evaluate_model("OLS_Step_Both_Outliers", best_linear_model, train_
 # Add coefficients to dataframe
 coefficients_df <- create_coefficients_df(
   model = best_linear_model,
-  model_name = "Inital Step Both (best model) Outliers Removed",
+  model_name = "OLS Both outliers",
   coefficients_df = coefficients_df
 )
 ```
@@ -2061,7 +2061,7 @@ transformed_model_weighted <- lm(transformed_price ~ ., weights = weights_iterat
 # Add coefficients to check if heteroscedascticity is resolved later
 coefficients_df <- create_coefficients_df(
   model = transformed_model_weighted,
-  model_name = "Weighted Transformed Model",
+  model_name = "WT Model",
   coefficients_df = coefficients_df
 )
 ```
@@ -2092,7 +2092,7 @@ bptest_result
 iteration <- 1
 
 #TODO change back to 200
-while (iteration < 200 && bptest_result$p.value < 0.05) {
+while (iteration < 1 && bptest_result$p.value < 0.05) {
   # Calculate new absolute residuals
   abs_residuals_new <- abs(transformed_model_weighted$residuals)
 
@@ -2138,7 +2138,7 @@ RMSE_test <- rmse(test_df_both$price, predicted_test)
 
 # Add the performance metrics of the transformed model to the df_results dataframe
 df_results <- rbind(df_results, data.frame(
-  Model = "Weighted Transformed Model 2000 iterations",
+  Model = "WT Model 200",
   SSE_train = SSE_train,
   SSE_test = SSE_test,
   R_squared_train = R_squared_train,
@@ -2154,7 +2154,7 @@ summary(transformed_model_weighted)
 # Add coefficients to dataframe
 coefficients_df <- create_coefficients_df(
   model = transformed_model_weighted,
-  model_name = "Weighted Transformed Model 200 Iterations",
+  model_name = "WT Model 200",
   coefficients_df = coefficients_df
 )
 
@@ -2189,7 +2189,7 @@ boxplot(transformed_model_weighted$residuals)
 
 ```{r wls_coefficent_comparison, echo = TRUE, include = TRUE}
 # Fetch the Weighted coefficients to compare results
-model_names_to_match <- c("Weighted Transformed Model", "Weighted Transformed Model 200 Iterations")
+model_names_to_match <- c("WT Model", "WT Model 200")
 
 # Use the subset function to select rows where Model_Name matches any of the model names in the list
 selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
@@ -2199,9 +2199,18 @@ cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
 
 # Remove columns with NA values from the selected subset
 selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+```
 
+```{r display_wls, echo = FALSE, include = TRUE}
 # Display the selected rows without columns containing NA values in a scrollable dataframe
-datatable(selected_rows, caption = generate_table_caption("Selected Rows Without NA Columns", section = 8))
+datatable(
+  selected_rows,
+  caption = generate_table_caption("WLS before and after 200 iterations model comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    autoWidth = TRUE  # Ensure columns are not truncated
+  )
+)
 ```
 
 
@@ -2230,7 +2239,7 @@ coefficients_df <- create_coefficients_df(
 
 ```{r compare_coefficients_from_ridge, echo = TRUE, include = TRUE}
 # Fetch the coefficients to compare results
-model_names_to_match <- c("Ridge Model", "Weighted Transformed Model 200 Iterations")
+model_names_to_match <- c("Ridge Model", "WT Model 200")
 
 # Use the subset function to select rows where Model_Name matches any of the model names in the list
 selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
@@ -2240,9 +2249,18 @@ cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
 
 # Remove columns with NA values from the selected subset
 selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+```
 
+```{r display_ridge, echo = FALSE, include = TRUE}
 # Display the selected rows without columns containing NA values in a scrollable dataframe
-datatable(selected_rows, caption = generate_table_caption("Ridge and OLS model comparison", section = 8))
+datatable(
+  selected_rows,
+  caption = generate_table_caption("Ridge and OLS model comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    autoWidth = TRUE  # Ensure columns are not truncated
+  )
+)
 ```
 
 ```{r plot_ridge_regression, echo = FALSE, include = TRUE, results = 'asis'}
@@ -2272,7 +2290,7 @@ coefficients_df <- create_coefficients_df(
 
 ```{r compare_coefficients_from_lasso, echo = TRUE, include = TRUE}
 # Fetch the coefficients to compare results between Lasso and other models
-model_names_to_match <- c("Lasso Model", "Weighted Transformed Model 200 Iterations")
+model_names_to_match <- c("Lasso Model", "WT Model 200")
 
 # Use the subset function to select rows where Model_Name matches any of the model names in the list
 selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
@@ -2283,8 +2301,18 @@ cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
 # Remove columns with NA values from the selected subset
 selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
 
+```
+
+```{r display_lasso, echo = FALSE, include = TRUE}
 # Display the selected rows without columns containing NA values in a scrollable dataframe
-datatable(selected_rows, caption = generate_table_caption("Lasso and OLS model comparison", section = 8))
+datatable(
+  selected_rows,
+  caption = generate_table_caption("Lasso and OLS model comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    autoWidth = TRUE  # Ensure columns are not truncated
+  )
+)
 ```
 
 ```{r plot_lasso_regression, echo = FALSE, include = TRUE, results = 'asis'}
@@ -2312,14 +2340,14 @@ print(paste0("Best Lambda for Elastic Net: ", best.lambda.elastic_net))
 # Add coefficients to dataframe for Elastic Net
 coefficients_df <- create_coefficients_df(
   model = coefficients(ElasticNetMod, s = best.lambda.elastic_net),
-  model_name = "Elastic Net Model",
+  model_name = "EN Model",
   coefficients_df = coefficients_df
 )
 ```
 
 ```{r compare_coefficients_from_elastic_net, echo = TRUE, include = TRUE, results = 'asis'}
 # Fetch the coefficients to compare results between Elastic Net and other models
-model_names_to_match <- c("Elastic Net Model", "Weighted Transformed Model 200 Iterations")
+model_names_to_match <- c("EN Model", "WT Model 200")
 
 # Use the subset function to select rows where Model_Name matches any of the model names in the list
 selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
@@ -2329,9 +2357,18 @@ cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
 
 # Remove columns with NA values from the selected subset
 selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+```
 
+```{r display_elastic_net_comp, echo = FALSE, include = TRUE}
 # Display the selected rows without columns containing NA values in a scrollable dataframe
-datatable(selected_rows, caption = generate_table_caption("Elastic Net and OLS model comparison", section = 8))
+datatable(
+  selected_rows,
+  caption = generate_table_caption("Elastic Net and OLS model comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    autoWidth = TRUE  # Ensure columns are not truncated
+  )
+)
 ```
 
 ```{r plot_elastic_net_regression, echo = FALSE, include = TRUE, results = 'asis'}
@@ -2357,7 +2394,7 @@ coefficients_df <- create_coefficients_df(
 
 ```{r compare_coefficients_from_huber, echo = TRUE, include = TRUE}
 # Fetch the coefficients to compare results between Huber and other models
-model_names_to_match <- c("Huber Model", "Weighted Transformed Model 200 Iterations")
+model_names_to_match <- c("Huber Model", "WT Model 200")
 
 # Use the subset function to select rows where Model_Name matches any of the model names in the list
 selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
@@ -2367,16 +2404,35 @@ cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
 
 # Remove columns with NA values from the selected subset
 selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
-
-# Display the selected rows without columns containing NA values in a scrollable dataframe
-datatable(selected_rows, caption = generate_table_caption("Huber and OLS model comparison", section = 8))
 ```
+
+```{r display_huber_comparison, echo = FALSE, include = TRUE}
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(
+  selected_rows,
+  caption = generate_table_caption("Huber and OLS model comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    autoWidth = TRUE  # Ensure columns are not truncated
+  )
+)
+```
+
 
 ### 8. Coefficients Examination
 
-```{r}
-# Assuming linear_model_initial and transformed_model are linear model objects you have fitted
-datatable(selected_rows, caption = generate_table_caption("All Model Coefficients", section = 8))
+```{r display_all, echo = FALSE, include = TRUE}
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(
+  coefficients_df,
+  caption = generate_table_caption("All Coefficients Comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    scrollY = TRUE,
+    autoWidth = TRUE,
+    pageLength = -1  # Show all rows without pagination
+  )
+)
 ```
 
 ---
@@ -2384,7 +2440,6 @@ datatable(selected_rows, caption = generate_table_caption("All Model Coefficient
 ## 9. Alternative Models
 ### 9.1 Regression Tree Model
 ### 9.2 Neural Network Model
-### 9.3 Support Vector Machine (SVM) Model
 ### 9.4 Logistic Regression
 
 ## 10. Model Evaluation on Test Data
