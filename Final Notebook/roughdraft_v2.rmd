@@ -1,6 +1,6 @@
 ---
-title: "EXT CSCI E-106 Model Data Class Group Project Template"
-author: "Charles Atchison"
+title: "EXT CSCI E-106 Model Data Class Group Project"
+author: "Charles Atchison <br> Jussan Da Silva Bahia Nasciomento"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -18,8 +18,7 @@ required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
   "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics", "kableExtra",
   "nortest", "olsrr", "onewaytests", "readr", "here", "stringr", "knitr", "reshape2", "leaflet",
-  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom", "neuralnet",
-  "pscl"
+  "RColorBrewer", "scales", "purrr", "DT", "jsonlite", "magrittr", "rpart", "broom", "pscl"
 )
 
 # Establish CRAN for package installs
@@ -2108,7 +2107,7 @@ while (iteration < 200 && bptest_result$p.value < 0.05) {
   weights_new <- 1 / (fitted_values_residuals_new ^ 2)
 
   # Refit the transformed model with the new weights
-  transformed_model_weighted <- lm(log(price) ~ ., weights = weights_new, data = train_df_both)
+  transformed_model_weighted <- lm(transformed_price ~ ., weights = weights_new, data = train_df_both[,-1])
 
   # Update the Breusch-Pagan test result
   bptest_result <- bptest(transformed_model_weighted, studentize = TRUE)
@@ -2849,7 +2848,6 @@ summary(fit_logistic)
 
 Here, we fit a binary logistic regression model using the `glm` function. We specify the family parameter as "binomial" for logistic regression and provide the training data. We then display a summary of the fitted model.
 
-
 #### 9.4.5 Deviance and Hypothesis Testing
 
 ```{r logistic_deviance_hyp, echo = TRUE, include = TRUE}
@@ -2931,8 +2929,7 @@ perform_and_evaluate_logistic_regression <- function(train_df, test_df, fit_logi
     accuracy_test = accuracy_test,
     precision_test = precision_test,
     recall_test = recall_test,
-    F1_test = F1_test,
-    pseudo_r_squared_test = pseudo_r_squared_test
+    F1_test = F1_test
   )
 
   return(results)
@@ -2957,8 +2954,7 @@ if (update_model_parameters) {
     accuracy_test = logistic_results$accuracy_test,
     precision_test = logistic_results$precision_test,
     recall_test = logistic_results$recall_test,
-    F1_test = logistic_results$F1_test,
-    pseudo_r_squared_test = logistic_results$pseudo_r_squared_test
+    F1_test = logistic_results$F1_test
   )
 
   # Update logistic regression results in JSON
@@ -2990,7 +2986,6 @@ logistic_model_row <- data.frame(
   F1_train = logistic_results$F1_train,
   F1_test = logistic_results$F1_test,
   Pseudo_R_squared_train = logistic_results$pseudo_r_squared_train,
-  Pseudo_R_squared_test = logistic_results$pseudo_r_squared_test,
   stringsAsFactors = FALSE
 )
 
