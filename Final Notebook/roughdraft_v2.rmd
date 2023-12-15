@@ -563,6 +563,53 @@ evaluate_model <- function(model_name, model, train_df, test_df, target_var, df_
 
   return(df_results)
 }
+
+# Create an empty coefficients data frame if it doesn't exist, otherwise add rows to it
+create_coefficients_df <- function(model, model_name = "Your Model Name", coefficients_df = NULL) {
+  # Check the type of model and extract coefficients accordingly
+  if (inherits(model, "lm")) {
+    coefficients <- coef(model)
+  } else if (inherits(model, "dgCMatrix")) { # If it's a matrix from glmnet
+    coefficients <- as.vector(model) # Convert matrix to vector
+    names(coefficients) <- rownames(model) # Use rownames from matrix as names
+  } else {
+    stop("Input model is not a recognized type.")
+  }
+
+  # Prepare the model data as a dataframe row
+  model_row <- data.frame(t(coefficients), check.names = FALSE)
+  model_row$Model_Name <- model_name  # Add the model name as a new column
+
+  # If coefficients_df is not provided, initialize a new data frame
+  if (is.null(coefficients_df)) {
+    coefficients_df <- model_row
+  } else {
+    # Align the model_row with the coefficients_df
+    # Adding NA columns for missing features in coefficients_df
+    missing_cols_in_df <- setdiff(names(model_row), names(coefficients_df))
+    if (length(missing_cols_in_df) > 0) {
+      coefficients_df[missing_cols_in_df] <- NA
+    }
+
+    # Adding NA columns for missing features in model_row
+    missing_cols_in_row <- setdiff(names(coefficients_df), names(model_row))
+    if (length(missing_cols_in_row) > 0) {
+      model_row[missing_cols_in_row] <- NA
+    }
+
+    # Ensure both dataframes have the same column order
+    model_row <- model_row[names(coefficients_df)]
+
+    # Bind the new row to the existing dataframe
+    coefficients_df <- rbind(coefficients_df, model_row)
+  }
+
+  # Sort the columns alphabetically, except 'Model_Name'
+  cols_order <- c("Model_Name", sort(setdiff(names(coefficients_df), "Model_Name")))
+  coefficients_df <- coefficients_df[, cols_order]
+
+  return(coefficients_df)
+}
 ```
 
 ### 4.2 Model Building
@@ -570,6 +617,9 @@ evaluate_model <- function(model_name, model, train_df, test_df, target_var, df_
 ```{r build_inital_linear_model}
 # Fit a linear regression model to the training data
 linear_model_initial <- lm(price ~ ., data = train_df_linear)
+
+# Initalize and start a coefficients_df to examine later
+coefficients_df <- create_coefficients_df(linear_model_initial, "Initial OLS Model")
 
 # Evaluate OLS_linear
 df_results <- evaluate_model("OLS_linear", linear_model_initial, train_df_linear, test_df_linear, target_var = 'price', NULL)
@@ -1476,6 +1526,13 @@ test_df_non_linear <- test_df_non_linear[, !colnames(test_df_non_linear) %in% c(
 
 # Rebuild linear regression model before performing stepwise
 linear_model_initial <- lm(price ~ ., data = train_df_linear)
+
+# Add new coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = linear_model_initial,
+  model_name = "Initial OLS Model High Corr Cols Removed",
+  coefficients_df = coefficients_df
+)
 ```
 
 
@@ -1493,7 +1550,6 @@ table_counter <- 0
 
 
 ```{r step_model, echo = TRUE, include = TRUE}
-
 # Define a function to fetch dropped features from models and create a kable table
 get_dropped_features_table <- function(model_backward, model_forward, best_linear_model, train_df_linear) {
   # Create a data frame to store the results
@@ -1626,6 +1682,27 @@ if (update_model_parameters) {
   }
 }
 
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = best_linear_model,
+  model_name = "Inital Step Both (best model)",
+  coefficients_df = coefficients_df
+)
+
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = model_forward,
+  model_name = "Step Forward",
+  coefficients_df = coefficients_df
+)
+
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = model_backward,
+  model_name = "Step Backward",
+  coefficients_df = coefficients_df
+)
+
 # Evaluate OLS_Step_Both
 df_results <- evaluate_model("OLS_Step_Both", best_linear_model, train_df_both, test_df_both, target_var = 'price', df_results)
 
@@ -1653,8 +1730,6 @@ view_model_results(df_results, generate_table_caption("Step Model Additions", se
 ```{r ols_best_model, echo = TRUE, include = TRUE}
 summary(best_linear_model)
 ```
-
-## TODO some explaination here
 
 ### 6.3 Model Comparison
 
@@ -1779,6 +1854,19 @@ print(influential_obs)
 
 # Remove outliers from both datasets
 train_df_both <- train_df_both[-influential_obs, ]
+
+# re-fit the linear model without outliers
+best_linear_model <- lm(price ~ ., data = train_df_both)
+summary(best_linear_model)
+
+df_results <- evaluate_model("OLS_Step_Both_Outliers", best_linear_model, train_df_both, test_df_both, target_var = 'price', df_results)
+
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = best_linear_model,
+  model_name = "Inital Step Both (best model) Outliers Removed",
+  coefficients_df = coefficients_df
+)
 ```
 
 
@@ -1856,6 +1944,13 @@ transformed_model <- lm(transformed_price ~ ., data = dplyr::select(train_df_bot
 
 summary(transformed_model)
 
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = transformed_model,
+  model_name = "Transformed Model",
+  coefficients_df = coefficients_df
+)
+
 # Predict prices for training and test data using the transformed model
 predicted_train_transformed <- predict(transformed_model, newdata = train_df_both)
 predicted_test_transformed <- predict(transformed_model, newdata = test_df_both)
@@ -1889,7 +1984,7 @@ df_results <- rbind(df_results, data.frame(
 ))
 
 # View the updated model results
-view_model_results(df_results, caption = generate_figure_caption("Transformation Model Addition", section = 8))
+view_model_results(df_results, caption = generate_table_caption("Transformation Model Addition", section = 8))
 ```
 
 #### 8.2.2 Plots after Transformation
@@ -1924,13 +2019,13 @@ We would typically define a VIF threshold (in this case, 10), which serves as a 
 
 ```{r breusch_pagan_test, echo = TRUE, include = TRUE}
 # Breusch-Pagan Test
-bp_test_results <- bptest(best_linear_model, studentize = FALSE)
+bp_test_results <- bptest(transformed_model, studentize = FALSE)
 
 # Output the results of the Breusch-Pagan test
 bp_test_results
 ```
 
-In our analysis, we conducted a Breusch-Pagan test to check for heteroscedasticity in our linear regression model, referred to as "best_linear_model." Heteroscedasticity refers to the situation where the spread of errors (residuals) in the model varies across different levels of the independent variables.
+In our analysis, we conducted a Breusch-Pagan test to check for heteroscedasticity in our linear regression model, referred to as "transformed_model." Heteroscedasticity refers to the situation where the spread of errors (residuals) in the model varies across different levels of the independent variables.
 
 The test results showed a very low p-value (p < 2.2e-16), indicating strong evidence against the null hypothesis suggesting that heteroscedasticity is present in the residuals of our model. This finding is essential as it implies that the variability of errors is not consistent across all levels of the predictor variables. Addressing heteroscedasticity may require adjustments to improve the model's reliability and interpretability.
 
@@ -1939,11 +2034,236 @@ The test results showed a very low p-value (p < 2.2e-16), indicating strong evid
 ```{r scale_location_plot_for_hetero, echo = FALSE, include = TRUE, results = 'asis'}
 cat(generate_figure_caption("Plots Examining Heteroscedasticity", section = 8))
 par(mfrow=c(1,2))
-plot(best_linear_model, 3)
-boxplot(best_linear_model$residuals)
+plot(transformed_model, 3)
+boxplot(transformed_model$residuals)
 ```
 
 ### 8.5 Remedial Measures for Heteroscedasticity
+
+#### 8.5.1 Weighted Least Squares
+
+```{r weighted_least_squares, echo = TRUE, include = TRUE}
+# Calculate absolute residuals from the transformed model
+transformed_model_residuals <- abs(transformed_model$residuals)
+
+# Fit a linear model on the absolute residuals of the transformed model
+residuals_model <- lm(transformed_model_residuals ~ ., data = train_df_both[, -1])
+
+# Retrieve fitted values from the residuals model
+fitted_values_residuals <- residuals_model$fitted.values
+
+# Calculate weights as the inverse square of the fitted values
+weights_iteration_1 <- 1 / (fitted_values_residuals ^ 2)
+
+# Refit the transformed model with the new weights
+transformed_model_weighted <- lm(transformed_price ~ ., weights = weights_iteration_1, data = train_df_both[, -1])
+
+# Add coefficients to check if heteroscedascticity is resolved later
+coefficients_df <- create_coefficients_df(
+  model = transformed_model_weighted,
+  model_name = "Weighted Transformed Model",
+  coefficients_df = coefficients_df
+)
+```
+
+
+```{r plot_diagnostic_plots_for_wls, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Plots Post WLS on Transformed Model", section = 8))
+# Perform diagnostic plots for the weighted transformed model
+par(mfrow = c(2, 2))
+plot(transformed_model_weighted)
+```
+
+```{r boxplot_diagnostic_plots_for_wls, echo = FALSE, include = TRUE, results = 'asis'}
+par(mfrow = c(1,1))
+cat(generate_figure_caption("Boxplot for WLS on Transformed Model", section = 8))
+boxplot(transformed_model_weighted$residuals)
+```
+
+
+```{r post_wls_bptest, echo = TRUE, include = TRUE}
+# Perform Breusch-Pagan test to check for heteroscedasticity
+bptest_result <- bptest(transformed_model_weighted, studentize = TRUE)
+bptest_result
+```
+
+```{r weighted_least_squares_iterations, echo = TRUE, include = TRUE}
+# Iterate to improve the model based on Breusch-Pagan test results
+iteration <- 1
+
+#TODO change back to 200
+while (iteration < 200 && bptest_result$p.value < 0.05) {
+  # Calculate new absolute residuals
+  abs_residuals_new <- abs(transformed_model_weighted$residuals)
+
+  # Fit a new linear model on the new absolute residuals
+  residuals_model_new <- lm(abs_residuals_new ~ ., data = train_df_both[, -1])
+
+  # Retrieve new fitted values
+
+  fitted_values_residuals_new <- residuals_model_new$fitted.values
+
+  # Calculate new weights
+  weights_new <- 1 / (fitted_values_residuals_new ^ 2)
+
+  # Refit the transformed model with the new weights
+  transformed_model_weighted <- lm(log(price) ~ ., weights = weights_new, data = train_df_both)
+
+  # Update the Breusch-Pagan test result
+  bptest_result <- bptest(transformed_model_weighted, studentize = TRUE)
+
+  # Increment iteration counter
+  iteration <- iteration + 1
+}
+
+# Extract coefficients from the final weighted least squares model
+coefficients_wls_final <- transformed_model_weighted$coefficients
+
+# Summary and diagnostic plots of the final model
+summary(transformed_model_weighted)
+
+# Evaluate model performance on the training dataset
+predicted_train <- predict(transformed_model_weighted, newdata = train_df_both)
+MAE_train <- mae(train_df_both$price, predicted_train)
+SSE_train <- sum((train_df_both$price - predicted_train) ^ 2)
+R_squared_train <- R2(train_df_both$price, predicted_train)
+RMSE_train <- rmse(train_df_both$price, predicted_train)
+
+# Evaluate model performance on the test dataset
+predicted_test <- predict(transformed_model_weighted, newdata = test_df_both)
+MAE_test <- mae(test_df_both$price, predicted_test)
+SSE_test <- sum((test_df_both$price - predicted_test) ^ 2)
+R_squared_test <- R2(test_df_both$price, predicted_test)
+RMSE_test <- rmse(test_df_both$price, predicted_test)
+
+# Add the performance metrics of the transformed model to the df_results dataframe
+df_results <- rbind(df_results, data.frame(
+  Model = "Weighted Transformed Model 2000 iterations",
+  SSE_train = SSE_train,
+  SSE_test = SSE_test,
+  R_squared_train = R_squared_train,
+  R_squared_test = R_squared_test,
+  RMSE_train = RMSE_train,
+  RMSE_test = RMSE_test,
+  MAE_train = MAE_train,
+  MAE_test = MAE_test
+))
+
+summary(transformed_model_weighted)
+
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = transformed_model_weighted,
+  model_name = "Weighted Transformed Model 200 Iterations",
+  coefficients_df = coefficients_df
+)
+
+# View the updated model results
+view_model_results(df_results, caption = generate_table_caption("Weighted Transformation Model Addition", section = 8))
+```
+
+#### 8.5.2 Weighted Least Squares Results Post 200 Iterations
+
+```{r bptest_for_transformed_weighted_model, echo = TRUE, include = TRUE}
+bptest(transformed_model_weighted, studentize = TRUE)
+```
+
+After performing the initial Breusch-Pagan test to assess heteroscedasticity on the weighted linear model (`transformed_model_weighted`), the test yielded a statistic of 71397 with 80 degrees of freedom, resulting in a p-value less than 2.2e-16, indicating significant heteroscedasticity in the model. This initial result indicated that the residuals of the model exhibited a pattern that violated the assumption of constant variance.
+
+To address this issue, 200 iterations were carried out, where the model was repeatedly re-fitted and the Breusch-Pagan test was performed after each iteration. After these iterations, the Breusch-Pagan test resulted in a significantly larger statistic of 976748 with the same 80 degrees of freedom, and a p-value still less than 2.2e-16. Despite the numerous iterations, the p-value remained extremely low, indicating that heteroscedasticity persisted in the model.
+
+Even after 200 iterations of weighting the linear model in an attempt to address heteroscedasticity, the model continued to exhibit significant heteroscedasticity, as indicated by the persistently low p-value from the Breusch-Pagan test. Further investigation or alternative modeling approaches may be necessary to effectively address this issue.
+
+```{r plot_diagnostic_plots_for_wls_post_iterations, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Plots Post WLS on Transformed Model after 200 Iterations", section = 8))
+# Perform diagnostic plots for the weighted transformed model
+par(mfrow = c(2, 2))
+plot(transformed_model_weighted)
+```
+
+```{r boxplot_diagnostic_plots_for_wls_post_iterations, echo = FALSE, include = TRUE, results = 'asis'}
+par(mfrow = c(1,1))
+cat(generate_figure_caption("Boxplot for WLS on Transformed Model after 200 Iterations", section = 8))
+boxplot(transformed_model_weighted$residuals)
+```
+
+```{r wls_coefficent_comparison, echo = TRUE, include = TRUE}
+# Fetch the Weighted coefficients to compare results
+model_names_to_match <- c("Weighted Transformed Model", "Weighted Transformed Model 200 Iterations")
+
+# Use the subset function to select rows where Model_Name matches any of the model names in the list
+selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
+
+# Identify columns with NA values in the selected subset of rows
+cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
+
+# Remove columns with NA values from the selected subset
+selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(selected_rows, caption = generate_table_caption("Selected Rows Without NA Columns", section = 8))
+```
+
+
+### 8.6 Ridge Regression
+
+```{r ridge_regression, echo = TRUE, include = TRUE}
+x <- data.matrix(dplyr::select(train_df_both, -price))
+y <- log(train_df_both$price)
+
+# Problem 8.5: Run Ridge Regression
+set.seed(1023)
+RidgeMod <- glmnet(x, y, alpha = 0, nlambda = 100, lambda.min.ratio = 0.0001)
+CvRidgeMod <- cv.glmnet(x, y, alpha = 0, nlambda = 100, lambda.min.ratio = 0.0001)
+
+# Find the best lambda
+best.lambda.ridge <- CvRidgeMod$lambda.min
+print(paste0("Best Lambda: ", best.lambda.ridge))
+
+# Add coefficients to dataframe
+coefficients_df <- create_coefficients_df(
+  model = coefficients(RidgeMod,s=best.lambda.ridge),
+  model_name = "Ridge Model",
+  coefficients_df = coefficients_df
+)
+```
+
+```{r compare_coefficients_from_ridge, echo = TRUE, include = TRUE}
+# Fetch the coefficients to compare results
+model_names_to_match <- c("Ridge Model", "Weighted Transformed Model 200 Iterations")
+
+# Use the subset function to select rows where Model_Name matches any of the model names in the list
+selected_rows <- subset(coefficients_df, Model_Name %in% model_names_to_match)
+
+# Identify columns with NA values in the selected subset of rows
+cols_with_na <- colnames(selected_rows)[apply(selected_rows, 2, anyNA)]
+
+# Remove columns with NA values from the selected subset
+selected_rows <- selected_rows[, !colnames(selected_rows) %in% cols_with_na]
+
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(selected_rows, caption = generate_table_caption("Ridge and OLS model comparison", section = 8))
+```
+
+```{r plot_ridge_regression, echo = FALSE, include = TRUE, results = 'asis'}
+cat(generate_figure_caption("Ridge Regression Plot", section = 8))
+# Plot cross-validated error
+par(mfrow = c(1, 1))
+plot(CvRidgeMod)
+```
+
+### 8.7 Lasso Regression
+
+### 8.8 Elastic Net Regression
+
+### Huber
+
+### 8. Coefficients Examination
+
+```{r}
+# Assuming linear_model_initial and transformed_model are linear model objects you have fitted
+print(coefficients_df)
+```
 
 ---
 
