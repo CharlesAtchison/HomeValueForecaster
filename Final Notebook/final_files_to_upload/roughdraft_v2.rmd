@@ -1,6 +1,6 @@
 ---
-title: "EXT CSCI E-106 Model Data Class Group Project Template"
-author: "Charles Atchison"
+title: "EXT CSCI E-106 Model Data Class Group Project"
+author: "Charles Atchison <br> Jussan Da Silva Bahia Nascimento <br> Won Jun Kang"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -13,7 +13,16 @@ output:
 ## 1. Load and Review the Dataset
 ### 1.1 Data Loading
 ```{r setup, echo = TRUE, include = TRUE, results = 'hide'}
-# List of required packages, including 'here'
+
+# Check R Version to avoid issues
+if (as.numeric(R.version$major) < 4 ||
+    (as.numeric(R.version$major) == 4 && as.numeric(R.version$minor) < 3) ||
+    (as.numeric(R.version$major) == 4 && as.numeric(R.version$minor) == 3 && as.numeric(R.version$patch) < 2)) {
+  message("Warning: Your R version is not 4.3.2 or greater.")
+  message("Please consider updating R to the latest version from:\nhttps://cran.r-project.org/")
+}
+
+# List of required packages
 required_packages <- c(
   "plyr", "alr4", "caret", "car", "corrplot", "dplyr", "effects", "fastDummies", "ggplot2",
   "GGally", "ggplot2", "ggpubr", "glmnet", "lmtest", "MASS", "ModelMetrics", "kableExtra",
@@ -41,9 +50,9 @@ lapply(required_packages, function(pkg) {
 rmd_dir <- dirname(here())
 
 # Navigate up one directory and then to the CSV data file
-csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
+csv_file <- file.path("KC_House_Sales.csv")
 
-json_filepath <- file.path(rmd_dir, "HomeValueForecaster/Final Notebook", "model_parameters.json")
+json_filepath <- file.path("model_parameters.json")
 
 # Read the CSV file into a data frame
 df <- read.csv(csv_file)

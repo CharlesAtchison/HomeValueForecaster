@@ -1,6 +1,6 @@
 ---
 title: "EXT CSCI E-106 Model Data Class Group Project"
-author: "Charles Atchison <br> Jussan Da Silva Bahia Nasciomento"
+author: " Charles Atchison <br> Jussan Da Silva Bahia Nascimento"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -36,13 +36,10 @@ lapply(required_packages, function(pkg) {
   suppressMessages(library(pkg, character.only = TRUE))
 })
 
-# Build the full path to the directory containing the Rmd file
-rmd_dir <- dirname(here())
+# Navigate up one directory and then to the CSV datafile
+csv_file <- file.path("KC_House_Sales.csv")
 
-# Navigate up one directory and then to the CSV data file
-csv_file <- file.path(rmd_dir, "HomeValueForecaster", "KC_House_Sales.csv")
-
-json_filepath <- file.path(rmd_dir, "HomeValueForecaster/Final Notebook", "model_parameters.json")
+json_filepath <- file.path("model_parameters.json")
 
 # Read the CSV file into a data frame
 df <- read.csv(csv_file)
