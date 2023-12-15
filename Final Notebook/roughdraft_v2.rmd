@@ -1515,10 +1515,10 @@ m
 #### 5.6.2 Conclusion
 This detailed review of the King County house sales dataset underscores the thorough preparation undertaken for the predictive analysis. The dataset's diverse variables, both continuous and categorical, have been meticulously processed and analyzed, providing a robust foundation for developing the predictive model. With the comprehensive EDA and graphical analysis, we gain valuable insights into the correlations and distributions within the data, setting the stage for effective model building and accurate house price prediction.
 
-### 5.7 Removal of Plot Features and Multicollinearity
+### 5.7 Removal of Plot Features, Correlation, Multicollinearity and NA Values
 
 ```{r remove_plot_features, echo = TRUE, include = TRUE}
-# Drop columns created for visualizations in prior steps, and columns that have almost perfect correlation and multicollinearity.
+# Drop columns created for visualizations in prior steps, columns that have high correlation, multicollinearity or NA values in the model
 train_df_non_linear <- train_df_non_linear[, !colnames(train_df_non_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
 train_df_linear <- train_df_linear[, !colnames(train_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
 test_df_linear <- test_df_linear[, !colnames(test_df_linear) %in% c("view_category", "condition_category", "grade_category", "grade_category_numeric", "z_score", "lat", "long", 'sqft_above', 'month_sold', 'week_of_year', 'condition_3', "grade_Below_Average", "bedrooms_factor", "bathrooms_factor")]
