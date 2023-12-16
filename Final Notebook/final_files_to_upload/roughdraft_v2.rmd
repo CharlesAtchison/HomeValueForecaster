@@ -3354,7 +3354,7 @@ datatable(
 
 ### 11.3 Benchmark Model (Lasso) Justification
 
-In choosing the Lasso Model as the benchmark for predicting housing prices in King County, several key factors have been considered. This analysis assesses the Lasso Model's performance with regard to linearity, normality, multicollinearity, outliers, and heteroscedasticity. The examination primarily focuses on the model's coefficients and their differences (total_diff) in comparison to other models.
+In choosing the Lasso Model as the benchmark for predicting housing prices in King County, several key factors have been considered. This analysis assesses the Lasso Model's performance with regard to linearity, normality, multicollinearity, outliers, and heteroscedasticity. The examination primarily focuses on the model's coefficients and their differences (total_diff) in comparison to other robust models (Huber, Ridge, Elastic Net, and Lasso).
 
 ### 11.4 Analysis of Coefficients
 
