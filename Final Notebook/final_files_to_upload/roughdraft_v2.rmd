@@ -1618,7 +1618,7 @@ if (update_model_parameters) {
   features_backward <- setdiff(names(coef(model_backward$model)), "(Intercept)")
 
   # Create a formula with the selected features
-  formula <- reformulate(features_forward, response = "price")
+  formula <- reformulate(features_backward, response = "price")
 
   # Refit the model with the selected features
   model_backward <- lm(formula, data = train_df_linear)
