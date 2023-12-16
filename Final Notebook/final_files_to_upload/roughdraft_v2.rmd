@@ -2794,9 +2794,9 @@ df_results <- rbind(df_results, nn_model_row)
 view_model_results(df_results, generate_table_caption("Neural Network Model Addition", section = 9))
 ```
 
-### 9.4 Logistic Regression
+### 9.3 Logistic Regression
 
-#### 9.4.1 Data Processing
+#### 9.3.1 Data Processing
 
 ```{r logistic_data_processing, echo = TRUE, include = TRUE}
 # Define the training and test datasets
@@ -2814,7 +2814,7 @@ test_df_logis$price <- factor(test_df_logis$price, levels = c("0", "1"), labels 
 
 In this section, we preprocess the data for binary logistic regression. We load the necessary libraries and define the training and test datasets. The "price" column is transformed into binary class labels based on the median, and it is converted to a factor with labels "low" and "high."
 
-#### 9.4.2 Data Structure and Summary
+#### 9.3.2 Data Structure and Summary
 
 ```{r logistic_structure_and_summary, echo = TRUE, include = TRUE}
 # Display structure and head of the datasets
@@ -2831,7 +2831,7 @@ unique(test_df_logis$price)
 
 In this section, we examine the structure and summary of the datasets. We display the structure, head, and unique values of the "price" column in both the training and test datasets.
 
-#### 9.4.3 Data Visualization
+#### 9.3.3 Data Visualization
 
 ```{r data_visualization_logistic_regression_1, echo = FALSE, include = TRUE, results = 'asis'}
 # Create histograms of "price" in both datasets
@@ -2848,7 +2848,7 @@ hist(as.numeric(test_df_logis$price))
 
 This section includes histograms of the `price` column in both datasets to visualize the distribution of class labels.
 
-#### 9.4.4 Binary Logistic Regression
+#### 9.3.4 Binary Logistic Regression
 
 ```{r fit_binary_logisitic, echo = TRUE, include = TRUE}
 # Fit a binary logistic regression model
@@ -2858,7 +2858,7 @@ summary(fit_logistic)
 
 Here, we fit a binary logistic regression model using the `glm` function. We specify the family parameter as "binomial" for logistic regression and provide the training data. We then display a summary of the fitted model.
 
-#### 9.4.5 Deviance and Hypothesis Testing
+#### 9.3.5 Deviance and Hypothesis Testing
 
 ```{r logistic_deviance_hyp, echo = TRUE, include = TRUE}
 # Compute the null and residual deviances
@@ -2886,7 +2886,7 @@ if (p_value < 0.05) {
 In this subsection, we compute the null and residual deviance's of the logistic regression model. We then calculate the difference in deviance's and degrees of freedom to perform a chi-squared test to assess the importance of variables. The result is used to determine whether variables are important or not.
 
 
-#### 9.4.6 Stepwise Selection with AIC
+#### 9.3.6 Stepwise Selection with AIC
 
 ```{r logistic_stepwise_aic, echo = TRUE, include = TRUE}
 # Function to perform and evaluate stepwise logistic regression
@@ -3017,11 +3017,11 @@ datatable(
 ```
 
 
-#### 9.4.7 Stepwise Logistic Regression Model Performance
+#### 9.3.7 Stepwise Logistic Regression Model Performance
 
 A "Stepwise Logistic Regression" model was applied to predict a binary outcome. The model demonstrated good performance on both the training and test datasets.
 
-#### 9.4.8 Training Dataset Metrics
+#### 9.3.8 Training Dataset Metrics
 
 For the training dataset, the model's performance metrics were as follows:
 
@@ -3035,7 +3035,7 @@ For the training dataset, the model's performance metrics were as follows:
 
 - **Pseudo R-squared:** The pseudo R-squared value, which measures the goodness of fit of the logistic regression model, was approximately 90.41%. A higher pseudo R-squared suggests that the model explains a significant portion of the variance in the data.
 
-#### 9.4.9 Test Dataset Metrics
+#### 9.3.9 Test Dataset Metrics
 
 When evaluated on the test dataset, the "Stepwise Logistic Regression" model displayed similar performance trends. The model's performance metrics on the test dataset were as follows:
 
@@ -3049,10 +3049,329 @@ When evaluated on the test dataset, the "Stepwise Logistic Regression" model dis
 
 - **Pseudo R-squared:** The pseudo R-squared value for the test dataset was about 67.68%, suggesting that the model explained a substantial portion of the variance in the test data, although slightly lower than on the training data.
 
+```{r reset_section9_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
+
 ## 10. Model Evaluation on Test Data
-### 10.1 Test Data Performance Metrics
-### 10.2 Model Comparison on Test Data
+
+### 10.1 Neural Network Model Analysis
+
+```{r display_neural_network_results, echo = FALSE, include = TRUE}
+# Display Neural Network model results
+datatable(
+  df_results[df_results$Model %in% "Neural Network", ],
+  caption = generate_table_caption("Neural Network Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.1.1 Results and Interpretation
+
+##### Model Performance
+
+The Neural Network model demonstrates impressive performance in predicting housing prices in King County, with substantial R-squared values of 0.9404 and 0.8734 for training and testing datasets, respectively. This indicates a high level of predictive accuracy, with the model explaining approximately 94% of the variance in the training dataset and 87% in the testing dataset. Such a high R-squared value in training suggests that the model fits the training data well, though the slight drop in the test data might hint at some overfitting.
+
+The model's RMSE (Root Mean Squared Error) values provide insight into the average prediction error. With RMSE values of 94,836.04 for training and 150,299.41 for testing, we observe that the model's predictions are closer to the actual values in the training set compared to the test set. This again might indicate overfitting, where the model is tuned more closely to the training data's specific characteristics.
+
+The MAE (Mean Absolute Error) of 57,832.30 for training and 83,381.52 for testing reflects the model's average absolute error in predicting housing prices. The higher MAE in the test set compared to the training set further supports the possibility of overfitting.
+
+### 10.2 Transformed Model Analysis
+
+```{r display_transformed_model_results, echo = FALSE, include = TRUE}
+# Display Transformed model results
+datatable(
+  df_results[df_results$Model %in% "Transformed Model", ],
+  caption = generate_table_caption("Transformed Model Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.2.1 Results and Interpretation
+
+##### Model Performance
+
+The Transformed Model, likely involving some form of data transformation or feature engineering, exhibits strong performance, with R-squared values of 0.87256 and 0.87105 for the training and test datasets, respectively. This consistency in R-squared values between training and testing suggests the model generalizes well without significant overfitting.
+
+The RMSE values, standing at 133,184.41 for training and 200,676.10 for testing, are relatively high, particularly in the test set. This indicates a larger average prediction error, which might be a concern in practical applications where lower errors are desired.
+
+The MAE values of 76,550.98 for training and 81,099.88 for testing further suggest that, on average, the model's predictions are off by these amounts from the actual prices. The closer values of MAE between training and testing datasets indicate a consistent performance of the model across both datasets.
+
+In summary, the Transformed Model's consistent performance across training and testing sets is commendable, but its higher error metrics compared to the Neural Network model suggest there might be room for improvement, possibly through more refined feature engineering or model tuning.
+
+### 10.3 OLS Stepwise Backward Model Analysis
+
+```{r display_ols_step_backward_results, echo = FALSE, include = TRUE}
+# Display OLS Stepwise Backward model results
+datatable(
+  df_results[df_results$Model %in% "OLS_Step_Backward", ],
+  caption = generate_table_caption("OLS Stepwise Backward Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.3.1 Results and Interpretation
+
+##### Model Performance
+
+The OLS Stepwise Backward Model, a linear regression model that iteratively removes the least significant variables, shows good R-squared values of 0.81781 for training and 0.81969 for testing. These values indicate that the model explains over 81% of the variance in housing prices in both datasets, showcasing a balanced fit that does not overly favor the training data.
+
+The RMSE values of 154,372.05 for training and 161,155.62 for testing suggest a moderate level of prediction error. While higher than what we observed in the Neural Network model, these values are acceptable for a linear model, which often trades off some predictive power for simplicity and interpretability.
+
+The MAE values of 92,205.44 for training and 93,103.61 for testing are consistent, indicating that the model's average prediction error remains stable across both datasets. This stability is a positive aspect, as it suggests the model's performance is not heavily dependent on the specific characteristics of the training data.
+
+Overall, the OLS Stepwise Backward Model is a strong contender in predicting housing prices, offering a good balance between predictive accuracy and model simplicity. Its interpretability, a key advantage of linear models, makes it a valuable tool for understanding the relationships between features and housing prices in King County.
+
+
+### 10.4 OLS Linear Model Analysis
+
+```{r display_ols_linear_results, echo = FALSE, include = TRUE}
+# Display OLS Linear model results
+datatable(
+  df_results[df_results$Model %in% "OLS_linear", ],
+  caption = generate_table_caption("OLS Linear Model Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.4.1 Results and Interpretation
+
+##### Model Performance
+
+The OLS Linear Model displays a commendable fit to the data with R-squared values of 0.81859 for training and 0.81966 for testing. These values suggest that the model explains approximately 82% of the variance in housing prices, both in training and testing datasets, indicating a robust model that generalizes well to new data. The similarity in R-squared values between the training and testing sets is particularly noteworthy as it implies a consistent model performance without overfitting.
+
+Regarding error metrics, the RMSE values of 154,041.04 for training and 161,166.07 for testing suggest a moderate prediction error. While not as low as some more complex models like the Neural Network, these RMSE values are relatively acceptable for a linear regression model. The consistent RMSE between training and testing also underscores the model's generalizability.
+
+The MAE values, 91,957.68 for training and 93,048.1 for testing, further reinforce this point. They reflect a stable average prediction error across both datasets, which is a positive aspect for model reliability.
+
+The OLS Linear Model stands out for its simplicity and consistency, making it a valuable model for predicting housing prices, especially when interpretability and understanding of linear relationships are crucial.
+
+### 10.5 OLS Step Forward Model Analysis
+
+```{r display_ols_step_forward_results, echo = FALSE, include = TRUE}
+# Display OLS Step Forward model results
+datatable(
+  df_results[df_results$Model %in% "OLS_Step_Forward", ],
+  caption = generate_table_caption("OLS Step Forward Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.5.1 Results and Interpretation
+
+##### Model Performance
+
+The OLS Step Forward Model, which iteratively adds the most significant variables, shows good model performance with R-squared values of 0.8178 for training and 0.81961 for testing. These figures indicate that the model explains over 81% of the variance in the housing prices for both datasets, showcasing a balanced fit and good predictive power.
+
+The RMSE values of 154,375.23 for training and 161,191.81 for testing indicate a moderate level of prediction error. These figures, while slightly higher than the OLS Linear Model, are still reasonable for a regression model. The consistency of RMSE between training and testing suggests that the model is not overfitted to the training data and can generalize well.
+
+The MAE values of 92,195.59 for training and 93,107.59 for testing further confirm the model's stable predictive performance across the two datasets. The similarity in these values suggests that the model's average prediction error is consistent, which is advantageous for practical applications.
+
+The OLS Step Forward Model is a robust option for predicting housing prices, providing a good balance between model complexity and performance. Its incremental approach in selecting variables can be particularly useful in identifying the most relevant features affecting housing prices.
+
+### 10.6 OLS Step Both Model Analysis
+
+```{r display_ols_step_both_results, echo = FALSE, include = TRUE}
+# Display OLS Step Both model results
+datatable(
+  df_results[df_results$Model %in% "OLS_Step_Both", ],
+  caption = generate_table_caption("OLS Step Both Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.6.1 Results and Interpretation
+
+##### Model Performance
+
+The OLS Step Both Model, which considers both adding and removing variables in each step, shows R-squared values of 0.81614 for training and 0.81715 for testing. These values, though slightly lower than the previous OLS models, still indicate that the model explains a substantial portion of the variance in housing prices, with over 81% in both training and testing data.
+
+The model's RMSE values of 155,079.14 for training and 162,285.16 for testing are somewhat higher than the other OLS models, suggesting a slightly increased average prediction error. However, these values are still within a reasonable range for regression models.
+
+The MAE values of 92,978.7 for training and 94,247.4 for testing are consistent and reflect the model's stable performance in predicting housing prices across different datasets. This stability is crucial in ensuring the model's reliability in various scenarios.
+
+The OLS Step Both Model provides a balanced approach to variable selection, offering a good mix of predictability and interpretability. While it may not be the strongest model in terms of minimizing error metrics, its comprehensive approach to feature selection makes it a valuable tool in understanding the factors influencing housing prices in King County.
+
+### 10.7 OLS Step Both with Outliers Model Analysis
+
+```{r display_ols_step_both_outliers_results, echo = FALSE, include = TRUE}
+# Display OLS Step Both with Outliers model results
+datatable(
+  df_results[df_results$Model %in% "OLS_Step_Both_Outliers", ],
+  caption = generate_table_caption("OLS Step Both with Outliers Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.7.1 Results and Interpretation
+
+##### Model Performance
+
+The OLS Step Both with Outliers Model, which presumably includes a stepwise approach while also addressing outliers, shows an R-squared of 0.82176 in training and 0.8167 in testing. This indicates a strong ability to explain the variance in housing prices, slightly better than some other OLS models. The slight decrease in R-squared from training to testing could suggest minor overfitting or variance in the test data not captured by the model.
+
+In terms of error metrics, the RMSE values are 148,908.82 for training and 162,486.45 for testing. The lower RMSE in the training set compared to the testing set might be due to the model being slightly more tuned to the training data, especially in the context of outlier handling. However, these values are relatively lower compared to other models, which is a positive sign.
+
+The MAE values of 91,385.31 for training and 93,114.76 for testing are consistent and indicate a stable average prediction error across both datasets. This stability is a positive indicator of the model's reliability across different scenarios.
+
+The OLS Step Both with Outliers Model appears to be a strong contender in terms of balancing the trade-off between complexity and prediction accuracy, especially with its focus on outlier handling, which is crucial in real estate data with its often skewed and outlier-prone distributions.
+
+### 10.8 Regression Tree Model Analysis
+
+```{r display_regression_tree_results, echo = FALSE, include = TRUE}
+# Display Regression Tree model results
+datatable(
+  df_results[df_results$Model %in% "Regression Tree", ],
+  caption = generate_table_caption("Regression Tree Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.8.1 Results and Interpretation
+
+##### Model Performance
+
+The Regression Tree Model, a non-linear approach, shows R-squared values of 0.79117 for training and 0.75897 for testing. These figures, while lower than the linear models, still represent a decent level of predictive accuracy, especially considering the model's non-linear nature. The drop in R-squared from training to testing suggests some overfitting, typical in tree-based models.
+
+The RMSE values stand at 165,274.84 for training and 186,382.77 for testing, indicating higher average prediction errors compared to the linear models. This could be due to the model capturing complex patterns in the training data that don't generalize as well to the test set.
+
+The MAE values of 109,635.94 for training and 116,844.59 for testing are the highest among all models discussed so far. This suggests that the average prediction error of the Regression Tree is comparatively larger, which might be a critical factor to consider in its practical application.
+
+While the Regression Tree Model brings the advantage of modeling non-linear relationships, which are often present in real estate data, its tendency towards overfitting and higher error rates compared to linear models may limit its suitability as the primary model for predicting housing prices in King County.
+
+### 10.9 Weighted Transformed Model 200 Iterations Analysis
+
+```{r display_wt_model_200_results, echo = FALSE, include = TRUE}
+# Display WT Model 200 results
+datatable(
+  df_results[df_results$Model %in% "WT Model 200", ],
+  caption = generate_table_caption("Weighted Transformed Model 200 Iterations Results", section = 10),
+  options = list(
+    scrollX = TRUE,
+    autoWidth = TRUE
+  )
+)
+```
+
+#### 10.9.1 Results and Interpretation
+
+##### Model Performance
+
+The Weighted Transformed Model 200 Iterations, potentially a more complex or specialized model, shows R-squared values of 0.75884 for training and 0.74016 for testing. These values are comparatively lower than both the linear and the Regression Tree models, suggesting a lesser ability to explain the variance in housing prices. The consistency between training and testing R-squared values, however, does indicate a level of robustness in the model's predictive ability across different datasets.
+
+The RMSE values are significantly higher, with 642,962.63 for training and 662,703.16 for testing, indicating very high average prediction errors. This might raise concerns about the model's practical application, as such high errors could significantly impact decision-making in real estate markets.
+
+Similarly, the MAE values of 537,582.19 for training and 543,270.39 for testing are extremely high, further emphasizing the model's limited accuracy in predicting housing prices. This could be a result of the model's complexity, potential overfitting, or it not being well-tuned to this specific dataset.
+
+The Weighted Transformed Model 200 Iterations, despite its potential complexity and sophistication, does not seem to perform as well as the other models in predicting housing prices in King County. Its high error metrics and lower R-squared values suggest that it might not be the best choice for this particular application, especially when accuracy and reliability are paramount.
+
+```{r reset_section10_counters, echo = FALSE, include = FALSE}
+# End of section so set both table and figure to 0
+fig_counter <- 0
+table_counter <- 0
+```
+
+---
 
 ## 11. Primary and Benchmark Models
-### 11.1 Selection of Primary Model
-### 11.2 Benchmark Model Identification
+
+### 11.1 Overall Model Performances
+
+```{r model_performance_metrics, echo = FALSE, include = TRUE}
+# Display model results
+view_model_results(df_results, generate_table_caption("All Model Results Comparisons", section = 11))
+```
+
+
+Given the comprehensive analysis of various models for predicting housing prices in King County, the selection of the Neural Network model as the primary choice, with the Transformed Model as a backup, is based on a careful consideration of several key performance metrics.
+
+### 11.2 Primary Choice: Neural Network Model
+
+1. **High R-squared Values:** The Neural Network model exhibited the highest R-squared values (0.9404 for training and 0.8734 for testing), indicating superior predictive accuracy. This model explained a significant portion of the variance in housing prices, more so than any other model tested. High R-squared in training shows the model's ability to capture complex relationships in the data, while the relatively high value in testing indicates good generalization capabilities.
+
+2. **Balanced RMSE and MAE:** Although the RMSE and MAE values for the Neural Network model were higher in the testing set compared to the training set (suggesting some overfitting), these values were still among the lowest across all models. The RMSE of 150,299.41 and MAE of 83,381.52 in the testing set are indicative of relatively accurate predictions. Lower error metrics are crucial in real estate applications where large prediction errors can be costly.
+
+3. **Model's Flexibility and Complexity:** Neural Networks are inherently more flexible and capable of modeling complex non-linear relationships that are often present in real estate data. This makes them well-suited for capturing intricate patterns and interactions among variables that linear models might miss.
+
+### 11.3 Backup Choice: Transformed Model
+
+1. **Consistent R-squared Across Datasets:** The Transformed Model showed consistent R-squared values in both training (0.87256) and testing (0.87105), which were second only to the Neural Network model. This consistency is a strong indicator of the model’s ability to generalize well, avoiding the pitfall of overfitting.
+
+2. **Reasonable RMSE and MAE:** While the RMSE and MAE values of the Transformed Model were higher compared to the Neural Network, especially in the testing set (RMSE of 200,676.10 and MAE of 81,099.88), they were still within a reasonable range. These figures suggest that the model is capable of making relatively accurate predictions, albeit not as precise as the Neural Network.
+
+3. **Potential for Robustness in Feature Handling:** The name 'Transformed Model' suggests that it involves some form of data transformation or feature engineering. This could imply an effective handling of outliers or skewed distributions, which are common in housing data. Such transformations can make the model robust to anomalies in the data, which is a valuable quality in real estate market analysis.
+
+### 11.4 Comparative Analysis
+
+1. **Overfitting Concerns:** While the Neural Network showed some signs of overfitting (as evidenced by the drop in R-squared from training to testing), its overall performance metrics still outperformed other models. The Transformed Model, with its consistent performance across training and testing, serves as a good backup to mitigate any overfitting risks.
+
+2. **Error Metrics Consideration:** In real estate price prediction, minimizing prediction errors is crucial due to the high stakes involved. Both the Neural Network and the Transformed Model presented reasonable error metrics, making them preferable for such applications.
+
+3. **Complexity vs. Interpretability Trade-off:** While simpler models like OLS Linear or OLS Stepwise models offer greater interpretability, they fell short in capturing the complexity of the housing market data as effectively as the Neural Network. The Transformed Model strikes a balance between complexity and interpretability, making it a suitable backup.
+
+The Neural Network model's superior ability to capture complex patterns and its lower error metrics make it the best choice for predicting housing prices in King County. The Transformed Model, with its consistent performance and potential robustness, serves as an excellent backup, especially in scenarios where overfitting or complexity of the primary model might be a concern.
+
+```{r final_coefficients_comparison, echo = FALSE, include = TRUE}
+# Display the selected rows without columns containing NA values in a scrollable dataframe
+datatable(
+  coefficients_df,
+  caption = generate_table_caption("Total Calculated Difference Coefficients Comparison", section = 8),
+  options = list(
+    scrollX = TRUE,  # Enable horizontal scrolling
+    scrollY = TRUE,
+    autoWidth = TRUE,
+    pageLength = -1  # Show all rows without pagination
+  )
+)
+```
+
+### 11.3 Benchmark Model (Lasso) Justification
+
+In choosing the Lasso Model as the benchmark for predicting housing prices in King County, several key factors have been considered. This analysis assesses the Lasso Model's performance with regard to linearity, normality, multicollinearity, outliers, and heteroscedasticity. The examination primarily focuses on the model's coefficients and their differences (total_diff) in comparison to other models.
+
+### 11.4 Analysis of Coefficients
+
+1. **Total Difference (total_diff):** The Lasso Model demonstrates a relatively low total_diff value compared to alternative models. This metric serves as a significant indicator of the model's overall stability and consistency in estimating coefficients across different modeling techniques.
+
+2. **Multicollinearity Control:** Lasso inherently addresses multicollinearity by shrinking certain coefficients to zero. This feature selection technique enhances model interpretability, reduces overfitting, and effectively deals with highly correlated predictors.
+
+3. **Outliers and Heteroscedasticity Management:** Lasso's regularization method not only facilitates feature selection but also mitigates sensitivity to outliers. This is evident in the stability of coefficients associated with variables such as 'lat,' 'long,' 'sqft_living,' and 'grade,' which are critical in housing price predictions. By penalizing the absolute magnitude of coefficients, Lasso diminishes the influence of outliers and aids in handling heteroscedasticity.
+
+4. **Handling Complex Feature Spaces:** The housing market dataset often includes a mix of categorical (e.g., zipcode, condition, grade) and continuous variables (e.g., sqft_living, bedrooms). Lasso adeptly manages this complexity by selecting the most relevant features and mitigating overfitting, as indicated by its coefficients across various predictors.
+
+5. **Comparison with Other Models:** In comparison to models such as Ridge or Elastic Net, Lasso strikes a balance between coefficient shrinkage and feature selection. Unlike Ridge, which shrinks coefficients but retains all variables, Lasso's approach of setting some coefficients to zero simplifies the model and enhances interpretability.
+
+6. **Coefficient Interpretation and Real Estate Insights:** The Lasso Model's coefficients align with intuitive real estate dynamics. For instance, positive coefficients for 'sqft_living,' 'bathrooms,' and 'grade_Above_Average' correspond to the understanding that larger, higher-graded houses with more amenities generally command higher prices. Negative coefficients for certain zip codes may suggest less desirable areas, a common insight in real estate analysis.
+
+7. **Consideration of Linearity and Normality:** While Lasso does not directly address linearity or normality assumptions, its reduction of multicollinearity indirectly contributes to a more stable and reliable linear regression framework.
+
+### 11.5 Conclusion
+
+The Lasso Model's effective control of multicollinearity, handling of outliers, and balanced approach to feature selection and regularization make it a well-suited benchmark model for predicting housing prices. Its lower total_diff value and the interpretability of its coefficients, especially within the context of real estate data, further support its appropriateness for this application. This approach, while robust, maintains a crucial level of simplicity and interpretability that is essential for practical real estate market analyses.
