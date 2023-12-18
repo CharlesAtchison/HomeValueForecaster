@@ -1297,11 +1297,11 @@ The correlation coefficient of -0.9954905 between `grade_Above_Average` and `gra
 
 By addressing the removal of these highly correlated variable pairs, our primary goal is to mitigate multicollinearity issues. Multicollinearity can distort regression coefficient estimates, inflate standard errors, and potentially obscure the statistical significance of predictors. The objective is to retain variables that provide unique and informative contributions to the model's prediction of house prices.
 
-### 5.5 Temporal Trends Analysis
+### 5.4 Temporal Trends Analysis
 
 Analyzing the influence of time-related features such as `month`, and `season` on house prices.
 
-#### 5.5.1 Monthly Trends in Average House Prices
+#### 5.4.1 Monthly Trends in Average House Prices
 
 ```{r monthly_trends_in_average_house_prices, echo = TRUE, include = TRUE}
 # Monthly Trends in Average House Prices
@@ -1335,7 +1335,7 @@ ggplot(monthly_counts_df, aes(x = Month, y = Count, group = 1)) +
   theme_minimal()
 ```
 
-#### 5.5.2 Seasonal Trends in Average House Prices
+#### 5.4.2 Seasonal Trends in Average House Prices
 
 ```{r seasonal_trends_in_average_house_prices, echo = TRUE, include = TRUE}
 # Aggregate average price for each season
@@ -1383,7 +1383,7 @@ ggplot(seasonal_counts_df, aes(x = Season, y = Count, fill = Season)) +
 
 ```
 
-#### 5.5.3 Week of the Year Trends in Average House Prices
+#### 5.4.3 Week of the Year Trends in Average House Prices
 
 ```{r week_of_the_year_trends_in_average_house_prices, echo = TRUE, include = TRUE}
 # Week of the Year Trends in Average House Prices
@@ -1415,7 +1415,7 @@ ggplot(weekly_counts_df, aes(x = Week_of_Year, y = Count)) +
   theme_minimal()
 ```
 
-#### 5.5.4 Day of the Year Trends in Average House Prices
+#### 5.4.4 Day of the Year Trends in Average House Prices
 
 ```{r day_of_the_year_trends_in_average_house_prices, echo = TRUE, include = TRUE}
 # Day of the Year Trends in Average House Prices
@@ -1451,11 +1451,11 @@ ggplot(daily_counts_df, aes(x = Day_of_Year, y = Count)) +
 
 - The "Daily Trends in Average House Prices" line chart showcases the average house prices for each day of the year. It helps identify daily patterns and potential price variations that could be influenced by specific dates or events.
 
-### 5.6 Geographical Influence Analysis
+### 5.5 Geographical Influence Analysis
 
 Investigating the spatial aspect by analyzing the `distance_to_convergence` variable.
 
-#### 5.6.1 Distance to Convergence Point Map
+#### 5.5.1 Distance to Convergence Point Map
 
 ```{r geographical_price_analysis, echo = TRUE, include = TRUE, results = 'asis'}
 # Calculate z-scores for the prices
@@ -1522,10 +1522,10 @@ cat(generate_figure_caption('Distance to Convergence Map', section = 5))
 m
 ```
 
-#### 5.6.2 Conclusion
+#### 5.5.2 Conclusion
 This detailed review of the King County house sales dataset underscores the thorough preparation undertaken for the predictive analysis. The dataset's diverse variables, both continuous and categorical, have been meticulously processed and analyzed, providing a robust foundation for developing the predictive model. With the comprehensive EDA and graphical analysis, we gain valuable insights into the correlations and distributions within the data, setting the stage for effective model building and accurate house price prediction.
 
-### 5.7 Removal of Plot Features, Correlation, Multicollinearity and NA Values
+### 5.6 Removal of Plot Features, Correlation, Multicollinearity and NA Values
 
 ```{r remove_plot_features, echo = TRUE, include = TRUE}
 # Drop columns created for visualizations in prior steps, columns that have high correlation, multicollinearity or NA values in the model
@@ -2447,15 +2447,15 @@ datatable(
 )
 ```
 
-#### 10.1 Coefficient Comparison Function
+#### 8.10.1 Coefficient Comparison Function
 
 This function is designed to provide a comprehensive comparison of regression model coefficients. It specifically targets scenarios where multiple models have been fit to the same dataset, and there's a need to understand the variability or consistency of these models in terms of their coefficients. This comparison is crucial in areas like feature importance analysis, model stability assessment, and in addressing multicollinearity, normality, and other statistical aspects.
 
-##### 10.1.1 Function Overview
+##### 8.10.2 Function Overview
 
 The `calculate_total_coefficient_differences_for_all` function iterates over each model in a given dataframe, calculates the sum of absolute differences in coefficients between that model and a predefined list of comparison models, and then adds these sums as a new column in the dataframe. This approach allows for a direct, quantitative comparison of how each model's coefficients differ from those of other specified models.
 
-##### 10.1.2 Detailed Utility of Function
+##### 8.10.3 Detailed Utility of Function
 
 - **Model Stability Analysis:** It provides insights into the stability of coefficients across different models. Large differences might indicate model instability or sensitivity to certain features.
 
@@ -3292,6 +3292,7 @@ Similarly, the MAE values of 537,582.19 for training and 543,270.39 for testing 
 
 The Weighted Transformed Model 200 Iterations, despite its potential complexity and sophistication, does not seem to perform as well as the other models in predicting housing prices in King County. Its high error metrics and lower R-squared values suggest that it might not be the best choice for this particular application, especially when accuracy and reliability are paramount.
 
+
 ```{r reset_section10_counters, echo = FALSE, include = FALSE}
 # End of section so set both table and figure to 0
 fig_counter <- 0
@@ -3374,4 +3375,4 @@ In choosing the Lasso Model as the benchmark for predicting housing prices in Ki
 
 ### 11.5 Conclusion
 
-The Lasso Model's effective control of multicollinearity, handling of outliers, and balanced approach to feature selection and regularization make it a well-suited benchmark model for predicting housing prices. Its lower total_diff value and the interpretability of its coefficients, especially within the context of real estate data, further support its appropriateness for this application. This approach, while robust, maintains a crucial level of simplicity and interpretability that is essential for practical real estate market analyses.
+The Lasso Model's effective control of multicollinearity, handling of outliers, and balanced approach to feature selection and regularization make it a well-suited benchmark model for predicting housing prices. Its lower total_diff value and the interpretability of its coefficients, especially within the context of real estate data, further support its appropriateness for this application. This approach, while robust, maintains a crucial level of simplicity and interpretability that is essential for practical real estate market analyses. Neural Networks model is our best model and our primary choice for the following reasons: it has the highest R-squared Values, balanced RMSE and MAE and model’s flexibility and complexity. In addition, we selected a backup model in the case Neural Networks loose performance or stability. Our back model is the Transformed Model as it has consistent R-squared across datasets, reasonable RMSE and MAE and  potential for robustness in feature handling.
