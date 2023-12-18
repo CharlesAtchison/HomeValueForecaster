@@ -679,15 +679,15 @@ While the initial model provides valuable insights, further optimization is warr
 
 #### 4.3.9 Next Steps
 
-We will commence with a comprehensive exploration of our dataset in Section 5, utilizing various visualization techniques to gain insights into the relationships between variables. This exploration includes scatter plots (Section 5.1), a correlation matrix (Section 5.2), and in-depth relationship analysis (Section 5.3).
+We will commence with a comprehensive exploration of our dataset in Section 5, utilizing various visualization techniques to gain insights into the relationships between variables. This exploration includes continuous variable plots, correlation analysis, and in-depth relationship analysis.
 
-In Section 6, we will employ a stepwise model selection approach to identify the most relevant predictors for our linear regression model. This process will be detailed in Section 6.1. Subsequently, we will present the results for the best linear model iterations in Sections 6.2 and 6.3, followed by a model comparison in Section 6.4.
+In Section 6, we will employ a stepwise model selection approach to identify the most relevant predictors for our linear regression model. Subsequently, we will present the results for the best linear model iterations, followed by a model comparison.
 
-Ensuring the validity of linear regression assumptions is vital, and we will conduct thorough checks in Section 7. This includes assessing the linearity assumption (Section 7.1), examining the normality of residuals (Section 7.2), and verifying homoscedasticity (constant variance) (Section 7.3).
+Ensuring the validity of linear regression assumptions is vital, and we will conduct thorough checks in Section 7. This includes assessing the linearity assumption, examining the normality of residuals, and verifying homoscedasticity (constant variance).
 
 In Section 8, we will address issues related to linearity, normality, heteroscedasticity and multicollinearity. We will detect and analyze heteroscedasticity in Section 8, with the presentation of remedial measures.
 
-As we progress, we will explore alternative modeling techniques in Section 9. This includes the implementation of a regression tree model (Section 9.1), a neural network model (Section 9.2), and a support vector machine (SVM) model (Section 9.3). If applicable, we will also consider a logistic regression model (Section 9.4). These alternative models will provide valuable insights and potential enhancements to our predictive capabilities.
+As we progress, we will explore alternative modeling techniques in Section 9. This includes the implementation of a regression tree model and a neural network model. If applicable, we will also consider a logistic regression model. These alternative models will provide valuable insights and potential enhancements to our predictive capabilities.
 
 ```{r reset_section4_counters, echo = FALSE, include = FALSE}
 # End of section so set both table and figure to 0
@@ -1205,13 +1205,13 @@ In the tables presented above, we've showcased the top 20 correlation values con
 
    1. **Positive Correlations with Price**:
       - Variables like `sqft_living`, `sqft_above`, `sqft_living15`, and `bathrooms` exhibit robust positive correlations with the target variable (`price`). This implies that as these features increase, house prices tend to increase correspondingly.
-      - Features such as `grade_11_13`, `view_4`, and `grade_8_10` also demonstrate positive correlations, indicating that properties with higher grades and better views tend to command higher prices.
+      - Features such as `view_4` also demonstrate positive correlations, indicating that properties with higher grades and better views tend to command higher prices.
 
    2. **Negative Correlations with Price**:
       - There are no negative correlations among the top 20 correlated variables. This suggests that none of the examined features strongly suggest a decrease in house price as they increase.
 
    3. **Feature Importance**:
-      - The strength of these correlations provides insights into the importance of variables in predicting house prices. Variables like `sqft_living` and `grade_11_13` emerge as strong predictors of price.
+      - The strength of these correlations provides insights into the importance of variables in predicting house prices. Variables like `sqft_living` and grades emerge as strong predictors of price.
       - Location-related variables, such as `zipcode_98004`, `zipcode_98039`, and `zipcode_98040`, also exhibit noteworthy positive correlations, underscoring the significance of location in price determination.
 
 #### 5.3.3 Correlation Heatmap
